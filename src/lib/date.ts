@@ -33,7 +33,10 @@ export function toIsoDate(value: string): string {
   if (!value) return "";
   const trimmed = value.trim();
   const digitsOnly = /^\d{4}-\d{2}-\d{2}$/.test(trimmed);
-  if (digitsOnly) return trimmed;
+  if (digitsOnly) {
+    const [year, month, day] = trimmed.split("-").map(Number);
+    return buildIsoDate(year, month, day);
+  }
 
   const patterns = [
     /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/,
@@ -55,7 +58,7 @@ export function toIsoDate(value: string): string {
     const month = Number(match[2]);
     const year = Number(match[3]);
     const fullYear = year < 100 ? 2000 + year : year;
-    return new Date(fullYear, month - 1, day).toISOString().slice(0, 10);
+    return buildIsoDate(fullYear, month, day);
   }
 
   const monthMatch = trimmed.match(/^(\d{1,2})\s+([A-Za-z]{3,})\s+(\d{4})$/);
@@ -63,10 +66,23 @@ export function toIsoDate(value: string): string {
     const day = Number(monthMatch[1]);
     const month = new Date(`${monthMatch[2]} 1, 2000`).getMonth();
     const year = Number(monthMatch[3]);
-    return new Date(year, month, day).toISOString().slice(0, 10);
+    return buildIsoDate(year, month + 1, day);
   }
 
   return trimmed;
+}
+
+function buildIsoDate(year: number, month: number, day: number): string {
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (
+    !Number.isFinite(date.getTime()) ||
+    date.getUTCFullYear() !== year ||
+    date.getUTCMonth() !== month - 1 ||
+    date.getUTCDate() !== day
+  ) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
 }
 
 export function parseTimeToMinutes(value: string): number {

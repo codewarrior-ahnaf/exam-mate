@@ -178,7 +178,7 @@ function Home() {
     try {
       const parsed = await parseRoutineFile(nextFile);
       if (!parsed.length) {
-        throw new Error("This file could not be read reliably. Please upload a CSV, Excel, or DOCX routine and check the headers.");
+        throw new Error("No exam entries were found. Make sure the routine has course code, date, and time columns.");
       }
       setAllExams(sortExams(parsed));
       setMessage(`Parsed ${parsed.length} exam entries successfully.`);
