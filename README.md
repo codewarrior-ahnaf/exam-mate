@@ -1,16 +1,44 @@
-# SEU Exam Routine
+# বাজার দর / BazarDor
 
-SEU Exam Routine is a Next.js app for extracting course exams from CSV, Excel, and DOCX routines, matching them to course codes, and exporting a print-ready schedule.
+**A clear, private way for SEU students to turn an official exam routine into a personal schedule.**
 
-## Requirements
+BazarDor reads a university routine, finds the courses you are taking, and presents your exam dates in an easy-to-read table. Upload and parsing happen in your browser, with an option to download a polished PDF.
 
-- Node.js 20+
-- A MongoDB connection URI
-- Google OAuth client credentials only if you want to use Google sign-in
+## Acknowledgment
 
-## Configure environment
+The project was inspired by the Python routine-processing file shared by **Tanjim Abubokor**. That reference helped shape the idea for turning routine data into a personalized exam schedule on the web.
 
-Set these variables in the root `.env` file. Keep this file private; it is ignored by git.
+## Technologies
+
+- **Next.js 15** and **React 19** for the web application
+- **TypeScript** for typed application code
+- **Tailwind CSS** for responsive styling
+- **SheetJS (xlsx)** and **Mammoth** for spreadsheet and DOCX parsing
+- **jsPDF** and **jspdf-autotable** for PDF exports
+- **Better Auth** and **MongoDB** for optional Google sign-in
+
+## Key features
+
+1. **Multiple routine formats** — Import CSV, XLS, XLSX, XLSM, and DOCX files.
+2. **Personal course matching** — Add your course codes and generate a schedule containing only your exams.
+3. **Easy-to-read exam table** — Review dates in DD/MM/YYYY format, days, times, course details, and faculty names.
+4. **Polished PDF export** — Download a print-ready routine with ExamMate branding.
+5. **Privacy-conscious storage** — Files are parsed in the browser; generated schedules are saved locally and expire after 15 days.
+
+## Run locally
+
+Requirements: Node.js 20+ and npm.
+
+```bash
+npm install
+npm run dev
+```
+
+Open the local URL printed by Next.js, normally `http://localhost:3000`.
+
+## Optional Google sign-in
+
+Google sign-in uses Better Auth and MongoDB. Add the following values to a private `.env` file in the project root:
 
 ```env
 DB_URI=mongodb+srv://<username>:<password>@<cluster>/<database>?retryWrites=true&w=majority
@@ -20,30 +48,8 @@ GOOGLE_CLIENT_ID=<your-google-oauth-client-id>
 GOOGLE_CLIENT_SECRET=<your-google-oauth-client-secret>
 ```
 
-`DB_URI` is used by Better Auth's MongoDB adapter for authentication, sessions, and linked Google accounts. Include the database name in the URI path. MongoDB creates the needed auth collections automatically. The exam routine itself remains in this browser's local storage and expires after 15 days.
+Configure the Google OAuth authorized redirect URI as `http://localhost:3000/api/auth/callback/google`. Google sign-in is optional; routine parsing and schedule generation work without an account.
 
-For Google sign-in, configure the OAuth client's authorized redirect URI as:
+## Privacy
 
-```text
-http://localhost:3000/api/auth/callback/google
-```
-
-In MongoDB Atlas, allow the machine's current public IP in **Network Access** and ensure the database user has read/write access to the selected database. If the MongoDB password contains URI-reserved characters, URL-encode them.
-
-## Run locally
-
-```bash
-npm install
-npm run dev
-```
-
-Open the local URL printed by Next.js (normally `http://localhost:3000`). `npm run dev:all` is also available as an alias. This project currently runs as a Next.js app; it no longer requires the removed Python/FastAPI service or a Python virtual environment.
-
-If port 3000 is already in use, Next.js will print a different local URL. Use that URL in the browser and update `BETTER_AUTH_URL` and Google's authorized redirect URI if you need Google sign-in on the alternate port.
-
-## Data and privacy
-
-- Routine files are parsed in the browser and are not uploaded to MongoDB.
-- Generated schedules and course codes are saved in browser local storage for 15 days.
-- MongoDB is used by Better Auth for account, session, and social-provider records.
-- Use **Clear my data** to remove the saved routine from this browser.
+Routine files are processed locally in the browser and are not uploaded to MongoDB. Generated schedules and course codes stay in browser storage for up to 15 days. Use **Clear My Data** to remove them sooner.

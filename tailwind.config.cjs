@@ -1,10 +1,32 @@
+/** @type {import('tailwindcss').Config} */
 module.exports = {
-  content: ["./app/**/*.{js,ts,jsx,tsx,mdx}", "./lib/**/*.{js,ts,jsx,tsx,mdx}"],
+  content: [
+    "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
+    "./src/lib/**/*.{js,ts,jsx,tsx,mdx}",
+  ],
   theme: {
-    extend: {},
+    extend: {
+      colors: {
+        cyber: {
+          bg: "#050a0e",
+          card: "rgba(13, 26, 31, 0.72)",
+          mint: "#4ee7a6",
+          cyan: "#38ef7d",
+          teal: "#2dd4bf",
+          border: "rgba(45, 212, 191, 0.22)",
+        },
+      },
+      fontFamily: {
+        tech: ["Inter", "sans-serif"],
+        mono: ["Inter", "sans-serif"],
+        sans: ["Inter", "sans-serif"],
+      },
+    },
   },
   plugins: [require("daisyui")],
   daisyui: {
-    themes: ["light"],
+    themes: ["dark"],
+    darkTheme: "dark",
   },
 };
