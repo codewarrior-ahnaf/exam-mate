@@ -27,6 +27,7 @@ import { authClient } from "@/lib/auth-client";
 import { formatDate, formatTime, normalizeCourseCode } from "@/lib/date";
 import { parseDocxFile } from "@/lib/parsers/docx";
 import { parseExcelFile } from "@/lib/parsers/excel";
+import { parsePdfFile } from "@/lib/parsers/pdf";
 import type { ParsedExam } from "@/lib/parsers/normalize";
 import PageLoadingSkeleton from "./loading-skeleton";
 
@@ -88,12 +89,13 @@ const SAMPLE_EXAMS: ParsedExam[] = [
 
 async function parseRoutineFile(file: File): Promise<ParsedExam[]> {
   const extension = file.name.toLowerCase();
-  if (extension.endsWith(".docx")) return parseDocxFile(file);
+  if (extension.endsWith(".pdf")) return parsePdfFile(file);
+  if (extension.endsWith(".docx") || extension.endsWith(".doc")) return parseDocxFile(file);
   if (
-    extension.endsWith(".csv") ||
     extension.endsWith(".xlsx") ||
     extension.endsWith(".xls") ||
-    extension.endsWith(".xlsm")
+    extension.endsWith(".xlsm") ||
+    extension.endsWith(".csv")
   ) {
     return parseExcelFile(file);
   }
@@ -393,6 +395,7 @@ export default function Home() {
   const [savedNotice, setSavedNotice] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
   const [calendarSyncing, setCalendarSyncing] = useState(false);
+  const [pngExporting, setPngExporting] = useState(false);
   const lastCalendarSyncRef = useRef("");
   const [isDragOver, setIsDragOver] = useState(false);
   const selectedCourseCodes = useMemo(() => {
@@ -702,12 +705,7 @@ export default function Home() {
     }
   }
 
-  function exportPdf() {
-    if (!generatedExams.length) {
-      setError("Synthesize your exam table first before exporting a PDF.");
-      return;
-    }
-
+  function buildPdfDocument(): jsPDF {
     const doc = new jsPDF({ orientation: "landscape" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -791,7 +789,219 @@ export default function Home() {
       },
     });
 
+    return doc;
+  }
+
+  function exportPdf() {
+    if (!generatedExams.length) {
+      setError("Synthesize your exam table first before exporting a PDF.");
+      return;
+    }
+    const doc = buildPdfDocument();
     doc.save("ExamMate-Schedule.pdf");
+  }
+
+  function fallbackExportPng() {
+    const scale = 2;
+    const width = 1100;
+    const paddingX = 40;
+    const headerHeight = 110;
+    const rowHeight = 44;
+    const footerHeight = 50;
+    const tableTop = headerHeight;
+    const totalHeight = headerHeight + (generatedExams.length + 1) * rowHeight + footerHeight;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = width * scale;
+    canvas.height = totalHeight * scale;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, totalHeight);
+
+    ctx.save();
+    ctx.translate(width / 2, totalHeight / 2);
+    ctx.rotate(-25 * (Math.PI / 180));
+    ctx.font = "bold 90px 'Inter', sans-serif";
+    ctx.fillStyle = "rgba(13, 148, 136, 0.07)";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ExamMate", 0, 0);
+    ctx.restore();
+
+    ctx.font = "bold 26px 'Inter', sans-serif";
+    ctx.fillStyle = "#0f2d2a";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("Exam Routine", paddingX, 30);
+
+    ctx.font = "13px 'Inter', sans-serif";
+    ctx.fillStyle = "#5c6f6c";
+    ctx.fillText(`Generated: ${formatGeneratedDate(new Date())}`, paddingX, 66);
+
+    ctx.strokeStyle = "#5eead4";
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(paddingX, 90);
+    ctx.lineTo(width - paddingX, 90);
+    ctx.stroke();
+
+    const tableWidth = width - paddingX * 2;
+    const columns = [
+      { header: "Date", width: tableWidth * 0.12 },
+      { header: "Day", width: tableWidth * 0.12 },
+      { header: "Time", width: tableWidth * 0.18 },
+      { header: "Course", width: tableWidth * 0.12 },
+      { header: "Course Title", width: tableWidth * 0.30 },
+      { header: "Faculty", width: tableWidth * 0.16 },
+    ];
+
+    ctx.fillStyle = "#0e7468";
+    ctx.fillRect(paddingX, tableTop, tableWidth, rowHeight);
+    ctx.font = "bold 13px 'Inter', sans-serif";
+    ctx.fillStyle = "#ffffff";
+    ctx.textBaseline = "middle";
+
+    let colX = paddingX;
+    for (const col of columns) {
+      ctx.fillText(col.header, colX + 12, tableTop + rowHeight / 2);
+      colX += col.width;
+    }
+
+    const rows = generatedExams.map((exam) => [
+      formatExamDate(exam),
+      getDayName(exam.date),
+      `${formatTime(exam.startTime)} – ${formatTime(exam.endTime)}`,
+      exam.courseCode,
+      exam.courseTitle,
+      formatFaculty(exam.faculty),
+    ]);
+
+    let currentY = tableTop + rowHeight;
+    for (let r = 0; r < rows.length; r++) {
+      const row = rows[r];
+      const isAlt = r % 2 === 1;
+
+      ctx.fillStyle = isAlt ? "#f1f9f7" : "#ffffff";
+      ctx.fillRect(paddingX, currentY, tableWidth, rowHeight);
+
+      ctx.strokeStyle = "#dce8e5";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(paddingX, currentY + rowHeight);
+      ctx.lineTo(width - paddingX, currentY + rowHeight);
+      ctx.stroke();
+
+      colX = paddingX;
+      for (let c = 0; c < columns.length; c++) {
+        const val = row[c];
+        const colDef = columns[c];
+
+        ctx.font = c === 3 ? "bold 12px 'DM Mono', monospace" : "12px 'Inter', sans-serif";
+        ctx.fillStyle = c === 3 ? "#0e7468" : "#263432";
+
+        const maxTextWidth = colDef.width - 24;
+        let textToDraw = val;
+        if (ctx.measureText(textToDraw).width > maxTextWidth) {
+          while (textToDraw.length > 0 && ctx.measureText(textToDraw + "...").width > maxTextWidth) {
+            textToDraw = textToDraw.slice(0, -1);
+          }
+          textToDraw += "...";
+        }
+
+        ctx.fillText(textToDraw, colX + 12, currentY + rowHeight / 2);
+        colX += colDef.width;
+      }
+
+      currentY += rowHeight;
+    }
+
+    ctx.strokeStyle = "#0e7468";
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(paddingX, tableTop, tableWidth, (rows.length + 1) * rowHeight);
+
+    const footerY = totalHeight - 22;
+    ctx.strokeStyle = "#dce8e5";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(paddingX, totalHeight - 35);
+    ctx.lineTo(width - paddingX, totalHeight - 35);
+    ctx.stroke();
+
+    ctx.font = "11px 'Inter', sans-serif";
+    ctx.fillStyle = "#697a76";
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.fillText("ExamMate", width - paddingX, footerY);
+
+    const link = document.createElement("a");
+    link.download = "ExamMate-Schedule.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  }
+
+  async function exportPng() {
+    if (!generatedExams.length) {
+      setError("Synthesize your exam table first before exporting an image.");
+      return;
+    }
+
+    setPngExporting(true);
+
+    try {
+      // 1. Build the exact PDF document
+      const doc = buildPdfDocument();
+      const pdfBytes = doc.output("arraybuffer");
+
+      // 2. Render that exact PDF to high-resolution PNG using pdfjs-dist
+      const pdfjsLib = await import("pdfjs-dist");
+      if (typeof window !== "undefined") {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+      }
+
+      const pdf = await pdfjsLib.getDocument({ data: pdfBytes }).promise;
+      const pagesData: { page: any; viewport: any }[] = [];
+      let totalHeight = 0;
+      let maxWidth = 0;
+
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 2.5 });
+        pagesData.push({ page, viewport });
+        totalHeight += viewport.height;
+        maxWidth = Math.max(maxWidth, viewport.width);
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = maxWidth;
+      canvas.height = totalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas context is unavailable.");
+
+      let currentY = 0;
+      for (const { page, viewport } of pagesData) {
+        ctx.save();
+        ctx.translate(0, currentY);
+        await page.render({
+          canvasContext: ctx,
+          viewport,
+        }).promise;
+        ctx.restore();
+        currentY += viewport.height;
+      }
+
+      const link = document.createElement("a");
+      link.download = "ExamMate-Schedule.png";
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    } catch (err) {
+      console.warn("Direct PDF to PNG render fallback:", err);
+      fallbackExportPng();
+    } finally {
+      setPngExporting(false);
+    }
   }
 
   const faqItems = [
@@ -803,7 +1013,7 @@ export default function Home() {
     {
       question: "Which file types can I upload?",
       answer:
-        "Standard CSV, XLSX, XLS, XLSM, and DOCX files are fully supported. The parser automatically detects relevant column headers (Course Code, Date, Time, Room, Faculty) and normalizes the schedule.",
+        "Standard PDF, XLSX, XLS, DOC, and DOCX files are fully supported. The parser automatically detects relevant column headers (Course Code, Date, Time, Room, Faculty) and normalizes the schedule.",
     },
     {
       question: "What happens to my data?",
@@ -1021,7 +1231,7 @@ export default function Home() {
                 >
                   <input
                     type="file"
-                    accept=".csv,.xlsx,.xls,.xlsm,.docx"
+                    accept=".pdf,.xlsx,.xls,.xlsm,.docx,.doc"
                     onChange={handleFileChange}
                     ref={inputRef}
                     className="sr-only"
@@ -1037,14 +1247,14 @@ export default function Home() {
                     {fileName || "Choose an exam routine file"}
                   </span>
                   <span className="mt-1 flex items-center gap-2" aria-hidden="true">
-                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-200">
-                      <FileText className="h-3 w-3" /> CSV
+                    <span className="inline-flex items-center gap-1 rounded-md border border-rose-400/25 bg-rose-400/10 px-2 py-1 text-[10px] text-rose-200">
+                      <FileText className="h-3 w-3" /> PDF
                     </span>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-lime-400/25 bg-lime-400/10 px-2 py-1 text-[10px] text-lime-200">
+                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-200">
                       <FileSpreadsheet className="h-3 w-3" /> XLSX
                     </span>
                     <span className="inline-flex items-center gap-1 rounded-md border border-sky-400/25 bg-sky-400/10 px-2 py-1 text-[10px] text-sky-200">
-                      <FileText className="h-3 w-3" /> DOCX
+                      <FileText className="h-3 w-3" /> DOC / DOCX
                     </span>
                   </span>
                 </label>
@@ -1311,7 +1521,7 @@ export default function Home() {
                     COURSE CODES
                   </span>
                   <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
-                    CSV / XLSX / DOCX
+                    PDF / XLSX / DOC
                   </span>
                   <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
                     YOUR ROUTINE
@@ -1335,7 +1545,7 @@ export default function Home() {
                 <h3 className="font-semibold text-base text-white">Upload routine</h3>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed">
-                Choose your university routine in CSV, Excel, or DOCX format.
+                Choose your university routine in PDF, XLSX, or DOC format.
               </p>
             </div>
 
@@ -1394,6 +1604,20 @@ export default function Home() {
                 >
                   <Download className="w-3.5 h-3.5 text-teal-400" />
                   <span>Download PDF</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={exportPng}
+                  disabled={pngExporting}
+                  className="btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs"
+                >
+                  {pngExporting ? (
+                    <LoaderCircle className="w-3.5 h-3.5 animate-spin text-teal-400" />
+                  ) : (
+                    <Download className="w-3.5 h-3.5 text-teal-400" />
+                  )}
+                  <span>{pngExporting ? "Rendering PNG..." : "Download PNG"}</span>
                 </button>
 
                 <button
