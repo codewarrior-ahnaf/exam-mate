@@ -11,3 +11,4 @@ exam_dashboard.sqlite3
 gcalendercred.json
 token.json
 .session_secret
+.vercel

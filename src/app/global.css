@@ -281,6 +281,19 @@ textarea,
     0 0 30px rgba(94, 234, 212, 0.08);
 }
 
+.glass-panel--static,
+.glass-panel--static:hover {
+  transition: none;
+}
+
+.glass-panel--static:hover {
+  border-color: var(--border-glow);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 25px rgba(94, 234, 212, 0.04);
+}
+
 .glass-card {
   background: rgba(14, 27, 36, 0.65);
   backdrop-filter: blur(16px);
@@ -497,6 +510,23 @@ textarea,
   backdrop-filter: blur(20px);
 }
 
+.page-skeleton-block {
+  border: 1px solid rgba(94, 234, 212, 0.09);
+  background: linear-gradient(100deg, rgba(94, 234, 212, 0.035) 20%, rgba(94, 234, 212, 0.11) 38%, rgba(94, 234, 212, 0.035) 56%);
+  background-size: 220% 100%;
+  animation: page-skeleton-shimmer 1.35s ease-in-out infinite;
+}
+
+.page-skeleton-upload {
+  animation: none;
+  border-style: dashed;
+  background: rgba(94, 234, 212, 0.055);
+}
+
+@keyframes page-skeleton-shimmer {
+  to { background-position-x: -220%; }
+}
+
 @media (max-width: 480px) {
   .google-connect-button--ready,
   .google-connect-button--disabled {
@@ -548,6 +578,10 @@ textarea,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .page-skeleton-block {
+    animation: none;
+  }
+
   *,
   *::before,
   *::after {

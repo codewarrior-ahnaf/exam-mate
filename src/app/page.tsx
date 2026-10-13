@@ -28,6 +28,7 @@ import { formatDate, formatTime, normalizeCourseCode } from "@/lib/date";
 import { parseDocxFile } from "@/lib/parsers/docx";
 import { parseExcelFile } from "@/lib/parsers/excel";
 import type { ParsedExam } from "@/lib/parsers/normalize";
+import PageLoadingSkeleton from "./loading-skeleton";
 
 const ROUTINE_STORAGE_KEY = "examMate:routine:v1";
 
@@ -380,6 +381,7 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [uploading, setUploading] = useState(false);
+  const [pageReady, setPageReady] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [fileName, setFileName] = useState("");
   const [courseInput, setCourseInput] = useState("");
@@ -436,6 +438,11 @@ export default function Home() {
     } catch {
       window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
     }
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => setPageReady(true), 450);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -812,6 +819,8 @@ export default function Home() {
     },
   ];
 
+  if (!pageReady) return <PageLoadingSkeleton />;
+
   return (
     <div className="min-h-screen text-[#E2E8F0] relative flex flex-col items-center justify-start selection:bg-teal-500/30 selection:text-teal-200">
       {/* Background Ambience Glows */}
@@ -980,7 +989,7 @@ export default function Home() {
         <LazySection id="generator" className="order-4 w-full pt-6" minHeight="620px">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
             {/* Left part of container */}
-            <div className="lg:col-span-8 glass-panel rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+            <div className="lg:col-span-8 glass-panel glass-panel--static rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
               {/* Header */}
               <div className="flex items-center justify-between border-b border-teal-500/20 pb-3">
                 <div className="flex items-center gap-3">
@@ -1006,10 +1015,10 @@ export default function Home() {
                   }}
                   onDragLeave={() => setIsDragOver(false)}
                   onDrop={handleDrop}
-                  className={`sm:col-span-12 relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-dashed transition-all cursor-pointer text-center ${
+                  className={`sm:col-span-12 relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-dashed cursor-pointer text-center ${
                     isDragOver
                       ? "border-emerald-400 bg-emerald-950/40"
-                      : "border-teal-400/50 hover:border-teal-300 bg-teal-950/25 hover:bg-teal-900/30"
+                      : "border-teal-400/50 bg-teal-950/25"
                   }`}
                 >
                   <input
@@ -1531,9 +1540,6 @@ export default function Home() {
                   Exam<span className="text-neon-mint">Mate</span>
                 </span>
               </div>
-              <p className="text-[11px] text-[#94A3B8]">
-                Clean exam planning for students who need a calmer routine.
-              </p>
             </div>
 
             {/* Right: Links for "Privacy Policy" and "Terms and Conditions" */}
