@@ -33,6 +33,25 @@ export function normalizeCourseCode(value: string): string {
     .toUpperCase();
 }
 
+export function coursesMatch(query: string, routineCode: string): boolean {
+  const qNorm = normalizeCourseCode(query);
+  const rNorm = normalizeCourseCode(routineCode);
+  if (!qNorm || !rNorm) return false;
+  if (qNorm === rNorm) return true;
+
+  // Compare base course codes (strip section suffix like .5 or .6)
+  const qBase = qNorm.replace(/\.\d+$/, "");
+  const rBase = rNorm.replace(/\.\d+$/, "");
+  if (qBase && rBase && qBase === rBase) return true;
+
+  // Strip all non-alphanumeric
+  const qClean = qNorm.replace(/[^A-Z0-9]/g, "");
+  const rClean = rNorm.replace(/[^A-Z0-9]/g, "");
+  if (qClean && rClean && qClean === rClean) return true;
+
+  return false;
+}
+
 const MONTH_NAMES: Record<string, number> = {
   jan: 1, january: 1,
   feb: 2, february: 2,

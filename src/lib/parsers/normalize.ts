@@ -94,12 +94,41 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
     "exam timing",
     "hours",
     "schedule",
+    "period",
     "date time",
     "date & time",
     "date and time",
   ],
-  startTime: ["start", "start time", "starting time", "from"],
-  endTime: ["end", "end time", "ending time", "to", "until"],
+  startTime: [
+    "start",
+    "starting",
+    "start time",
+    "starting time",
+    "startingtime",
+    "from",
+    "from time",
+    "exam start",
+    "start time slot",
+    "start slot",
+  ],
+  endTime: [
+    "end",
+    "ending",
+    "endin",
+    "endin g time",
+    "end time",
+    "ending time",
+    "endingtime",
+    "to",
+    "to time",
+    "until",
+    "finish",
+    "finish time",
+    "exam end",
+    "ending time slot",
+    "end time slot",
+    "end slot",
+  ],
   faculty: [
     "faculty",
     "teacher",
@@ -169,57 +198,89 @@ export function getHeaderField(value: unknown): HeaderField | undefined {
   )?.[0];
   if (exact) return exact;
 
-  // 2. Substring & prefix heuristics
+  // 2. Start Time (check before generic time)
+  if (
+    h.startsWith("start") ||
+    h.startsWith("from") ||
+    h.includes("start time") ||
+    h.includes("starting time") ||
+    h === "from"
+  ) {
+    return "startTime";
+  }
+
+  // 3. End Time (check before generic time)
+  if (
+    h.startsWith("end") ||
+    h.startsWith("finish") ||
+    h === "to" ||
+    h === "to time" ||
+    h.includes("end time") ||
+    h.includes("ending time") ||
+    h.includes("endin")
+  ) {
+    return "endTime";
+  }
+
+  // 4. Course Code
   if (
     h === "course code" ||
-    h.startsWith("course code") ||
-    h.startsWith("course no") ||
-    h.startsWith("course num") ||
+    h === "coursecode" ||
     h === "code" ||
-    h.includes("course id") ||
+    h.includes("course code") ||
+    h.includes("course no") ||
+    h.includes("course num") ||
+    h.includes("subject code") ||
     h.includes("paper code") ||
-    h === "sub code" ||
-    h === "subject code"
+    (h.startsWith("course") && !h.includes("title") && !h.includes("name"))
   ) {
     return "courseCode";
   }
 
+  // 5. Course Title
   if (
     h === "course title" ||
-    h.startsWith("course title") ||
-    h.startsWith("course name") ||
+    h === "coursetitle" ||
     h === "title" ||
     h === "subject" ||
-    h.startsWith("subject name") ||
-    h.startsWith("subject title")
+    h.includes("course title") ||
+    h.includes("course name") ||
+    h.includes("subject title") ||
+    h.includes("subject name") ||
+    h === "name of course"
   ) {
     return "courseTitle";
   }
 
-  if (h.includes("date") || h === "day") {
+  // 6. Date
+  if (h.includes("date") || h === "day" || h.startsWith("day")) {
     return "date";
   }
 
+  // 7. Generic Time (if not start/end)
   if (
     h.includes("time") ||
     h.includes("slot") ||
     h.includes("timing") ||
     h.includes("session") ||
-    h.includes("schedule")
+    h.includes("schedule") ||
+    h.includes("period")
   ) {
     return "time";
   }
 
+  // 8. Faculty
   if (
     h.includes("teacher") ||
     h.includes("faculty") ||
     h.includes("instructor") ||
     h.includes("invigilator") ||
-    h === "initial"
+    h.includes("initial")
   ) {
     return "faculty";
   }
 
+  // 9. Program
   if (
     h.includes("dept") ||
     h.includes("program") ||
@@ -230,6 +291,7 @@ export function getHeaderField(value: unknown): HeaderField | undefined {
     return "program";
   }
 
+  // 10. Room
   if (h.includes("room") || h.includes("hall") || h.includes("venue") || h.includes("lab")) {
     return "room";
   }
@@ -240,28 +302,59 @@ export function getHeaderField(value: unknown): HeaderField | undefined {
 export function findHeaderRow(
   rows: unknown[][],
   requireDate = true,
-): { index: number; columns: HeaderColumns } | undefined {
-  let best: { index: number; columns: HeaderColumns; score: number } | undefined;
+): { index: number; columns: HeaderColumns; headerRowCount?: number } | undefined {
+  let best: { index: number; columns: HeaderColumns; score: number; headerRowCount?: number } | undefined;
   const scanLimit = Math.min(rows.length, 60);
 
   for (let index = 0; index < scanLimit; index += 1) {
+    // Strategy A: Single row header
     const columns: HeaderColumns = {};
     rows[index]?.forEach((value, columnIndex) => {
       const field = getHeaderField(value);
       if (field && columns[field] === undefined) columns[field] = columnIndex;
     });
 
-    if (columns.courseCode === undefined) continue;
+    // Strategy B: 2-row multi-line header (e.g. Row 0: "Starting", Row 1: "Time")
+    const nextRow = rows[index + 1];
+    const mergedColumns: HeaderColumns = { ...columns };
+    if (nextRow && Array.isArray(nextRow)) {
+      const maxCols = Math.max(rows[index]?.length ?? 0, nextRow.length);
+      for (let c = 0; c < maxCols; c++) {
+        const topVal = String(rows[index]?.[c] ?? "").trim();
+        const botVal = String(nextRow[c] ?? "").trim();
+        const mergedText = `${topVal} ${botVal}`.trim();
+        const field = getHeaderField(mergedText);
+        if (field && mergedColumns[field] === undefined) {
+          mergedColumns[field] = c;
+        }
+      }
+    }
 
-    const hasTime =
-      columns.time !== undefined ||
-      columns.startTime !== undefined ||
-      columns.endTime !== undefined;
+    // Evaluate single row
+    if (columns.courseCode !== undefined) {
+      const hasTime =
+        columns.time !== undefined ||
+        columns.startTime !== undefined ||
+        columns.endTime !== undefined;
+      if (!requireDate || columns.date !== undefined || hasTime) {
+        const score = Object.keys(columns).length;
+        if (!best || score > best.score) best = { index, columns, score, headerRowCount: 1 };
+      }
+    }
 
-    if (requireDate && columns.date === undefined && !hasTime) continue;
-
-    const score = Object.keys(columns).length;
-    if (!best || score > best.score) best = { index, columns, score };
+    // Evaluate 2-row merged
+    if (mergedColumns.courseCode !== undefined) {
+      const hasTime =
+        mergedColumns.time !== undefined ||
+        mergedColumns.startTime !== undefined ||
+        mergedColumns.endTime !== undefined;
+      if (!requireDate || mergedColumns.date !== undefined || hasTime) {
+        const score = Object.keys(mergedColumns).length;
+        if (!best || score > best.score) {
+          best = { index, columns: mergedColumns, score, headerRowCount: 2 };
+        }
+      }
+    }
   }
 
   return best;
@@ -273,38 +366,63 @@ function normalizeText(value: unknown, fallback = ""): string {
 }
 
 export function normalizeRow(raw: Record<string, unknown>): ParsedExam | null {
-  const courseCode = normalizeCourseCode(
-    normalizeText(raw.courseCode ?? raw["Course Code"] ?? raw["Course code"], ""),
+  const rawCodeText = normalizeText(
+    raw.courseCode ?? raw["Course Code"] ?? raw["Course code"],
+    "",
   );
-  const courseTitle = normalizeText(
+  if (!rawCodeText) return null;
+
+  // Extract pure course code (e.g. "CSE 101 - Programming" -> "CSE101")
+  const extractedCodes = extractCourseCodes(rawCodeText);
+  const courseCode = extractedCodes.length > 0 ? extractedCodes[0].code : normalizeCourseCode(rawCodeText);
+  if (!courseCode) return null;
+
+  let courseTitle = normalizeText(
     raw.courseTitle ?? raw["Course Title"] ?? raw["Course title"] ?? raw["Title"],
-    "Untitled exam",
+    "",
   );
-  const faculty = normalizeText(
+  if (!courseTitle || courseTitle === "Exam" || courseTitle === rawCodeText) {
+    if (extractedCodes.length > 0) {
+      const cleaned = extractCleanTitle(rawCodeText, extractedCodes[0].raw);
+      if (cleaned && cleaned !== "Exam") courseTitle = cleaned;
+    }
+  }
+  if (!courseTitle) {
+    courseTitle = "Untitled exam";
+  }
+
+  const rawFaculty = normalizeText(
     raw.faculty ?? raw["Faculty"] ?? raw["Teacher"] ?? raw["Instructor"] ?? raw["Lecturer"],
     "Faculty not listed",
   );
+  const faculty = rawFaculty.replace(/^\d+\s+/, "").trim() || "Faculty not listed";
   const program = normalizeText(
     raw.program ?? raw["Program"] ?? raw["Department"] ?? raw["Semester"],
     "General",
   );
-
-  if (!courseCode) return null;
 
   const rawDate = normalizeText(
     raw.date ?? raw["Date"] ?? raw["Exam Date"] ?? raw["Exam date"],
     "",
   );
   const rawTime = normalizeText(
-    raw.time ?? raw["Time"] ?? raw["Exam Time"] ?? raw["Start Time"] ?? raw["End Time"],
+    raw.time ?? raw["Time"] ?? raw["Exam Time"],
+    "",
+  );
+  const rawStartTime = normalizeText(
+    raw.startTime ?? raw["Start Time"] ?? raw["Starting Time"] ?? raw["Start"],
+    "",
+  );
+  const rawEndTime = normalizeText(
+    raw.endTime ?? raw["End Time"] ?? raw["Ending Time"] ?? raw["End"],
     "",
   );
   const isoDate = toIsoDate(rawDate);
 
   const timeRange = parseTimeRange(
     rawTime,
-    String(raw.startTime ?? raw["Start Time"] ?? ""),
-    String(raw.endTime ?? raw["End Time"] ?? ""),
+    rawStartTime,
+    rawEndTime,
   );
   const startTime = timeRange.start;
   const endTime = timeRange.end;
@@ -325,6 +443,33 @@ export function normalizeRow(raw: Record<string, unknown>): ParsedExam | null {
 }
 
 export function parseTimeRange(rawValue: string, startValue = "", endValue = "") {
+  const cleanStart = String(startValue ?? "").trim();
+  const cleanEnd = String(endValue ?? "").trim();
+
+  // If startValue and endValue are both explicitly passed
+  if (cleanStart && cleanEnd) {
+    let start = normalizeTime(cleanStart);
+    let end = normalizeTime(cleanEnd);
+
+    if (start && end) {
+      const startMins = parseTimeToMinutes(start);
+      const endMins = parseTimeToMinutes(end);
+      if (endMins <= startMins && endMins + 720 > startMins) {
+        // End time wrapped into PM without PM label (e.g. start 11:30 AM, end 01:30 PM)
+        end = normalizeTime(cleanEnd, "PM");
+      }
+      return { start, end };
+    }
+  }
+
+  // If only startValue is passed without endValue
+  if (cleanStart && !cleanEnd && !rawValue) {
+    const start = normalizeTime(cleanStart);
+    if (start) {
+      return { start, end: addHoursToTimeString(start, 2) };
+    }
+  }
+
   const combined = [rawValue, startValue, endValue].filter(Boolean).join(" ");
   const cleaned = combined
     .replace(/(\d{1,2})\.(\d{2})/g, "$1:$2")
@@ -508,7 +653,7 @@ export function extractCourseCodes(text: string): { raw: string; code: string }[
   for (const m of matches) {
     const prefix = m[1].toUpperCase();
     if (NON_COURSE_PREFIXES.has(prefix)) continue;
-    const cleanNum = m[2].replace(/[.\s-]/g, "").toUpperCase();
+    const cleanNum = m[2].replace(/[\s-]+/g, "").toUpperCase();
     const code = `${prefix}${cleanNum}`;
     if (!seen.has(code)) {
       seen.add(code);

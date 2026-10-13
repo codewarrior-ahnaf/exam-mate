@@ -1,6 +1,12 @@
 import * as XLSX from "xlsx";
 import type { ParsedExam } from "@/lib/parsers/normalize";
-import { findHeaderRow, normalizeRow } from "@/lib/parsers/normalize";
+import {
+  extractCourseCodes,
+  extractDateFromText,
+  extractTimeFromText,
+  findHeaderRow,
+  normalizeRow,
+} from "@/lib/parsers/normalize";
 
 function cellValue(row: unknown[], column: number | undefined): string {
   if (column === undefined) return "";
@@ -31,21 +37,57 @@ export async function parseExcelFile(file: File): Promise<ParsedExam[]> {
     foundRoutineHeaders = true;
     let previousDate = "";
     let previousTime = "";
+    let previousStartTime = "";
+    let previousEndTime = "";
 
-    for (const row of rows.slice(header.index + 1)) {
-      const courseCode = cellValue(row, header.columns.courseCode);
+    const skipRows = header.headerRowCount ?? 1;
+    for (const row of rows.slice(header.index + skipRows)) {
+      // 1. Course code
+      let courseCode = cellValue(row, header.columns.courseCode);
+      if (!courseCode) {
+        for (const cell of row) {
+          const found = extractCourseCodes(String(cell ?? ""));
+          if (found.length > 0) {
+            courseCode = found[0].code;
+            break;
+          }
+        }
+      }
+
+      // 2. Date
       const dateCell = cellValue(row, header.columns.date);
       if (dateCell && dateCell !== previousDate) {
         previousDate = dateCell;
         previousTime = "";
+        previousStartTime = "";
+        previousEndTime = "";
+      } else if (!previousDate) {
+        const detected = extractDateFromText(row.map((c) => String(c ?? "")).join(" "));
+        if (detected) previousDate = detected.raw;
       }
       const rawDate = dateCell || previousDate;
 
+      // 3. Time (support both generic Time slot and separate Start/End Time columns)
       const timeCell = cellValue(row, header.columns.time);
-      if (timeCell) {
-        previousTime = timeCell;
+      const startCell = cellValue(row, header.columns.startTime);
+      const endCell = cellValue(row, header.columns.endTime);
+
+      if (timeCell) previousTime = timeCell;
+      if (startCell) previousStartTime = startCell;
+      if (endCell) previousEndTime = endCell;
+
+      if (!timeCell && !startCell && !endCell && !previousTime && (!previousStartTime || !previousEndTime)) {
+        const detectedTime = extractTimeFromText(row.map((c) => String(c ?? "")).join(" "));
+        if (detectedTime) {
+          previousTime = detectedTime.raw;
+          previousStartTime = detectedTime.start;
+          previousEndTime = detectedTime.end;
+        }
       }
+
       const rawTime = timeCell || previousTime;
+      const rawStartTime = startCell || previousStartTime;
+      const rawEndTime = endCell || previousEndTime;
 
       if (!courseCode || !rawDate) continue;
 
@@ -54,8 +96,8 @@ export async function parseExcelFile(file: File): Promise<ParsedExam[]> {
         courseTitle: cellValue(row, header.columns.courseTitle),
         date: rawDate,
         time: rawTime,
-        startTime: cellValue(row, header.columns.startTime),
-        endTime: cellValue(row, header.columns.endTime),
+        startTime: rawStartTime,
+        endTime: rawEndTime,
         faculty: cellValue(row, header.columns.faculty),
         program: cellValue(row, header.columns.program),
       });
@@ -66,13 +108,13 @@ export async function parseExcelFile(file: File): Promise<ParsedExam[]> {
 
   if (!foundRoutineHeaders) {
     throw new Error(
-      "Couldn't find a routine table. Add a header row with Course Code, Date, and Time (or Start Time and End Time).",
+      "Couldn't find a routine table in this Excel file. Ensure there is a header row with Course Code, Date, and Time.",
     );
   }
 
   if (!exams.size) {
     throw new Error(
-      "Routine headers were found, but no complete exam rows could be read. Check that each row has a course code, date, and valid time.",
+      "Routine headers were found in the Excel file, but no complete exam rows could be read. Check that each row includes a course code, date, and time.",
     );
   }
 

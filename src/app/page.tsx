@@ -24,10 +24,8 @@ import {
 import { GState, jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { authClient } from "@/lib/auth-client";
-import { formatDate, formatTime, normalizeCourseCode } from "@/lib/date";
-import { parseDocxFile } from "@/lib/parsers/docx";
+import { formatDate, formatTime, normalizeCourseCode, coursesMatch } from "@/lib/date";
 import { parseExcelFile } from "@/lib/parsers/excel";
-import { parsePdfFile } from "@/lib/parsers/pdf";
 import type { ParsedExam } from "@/lib/parsers/normalize";
 import PageLoadingSkeleton from "./loading-skeleton";
 
@@ -89,8 +87,6 @@ const SAMPLE_EXAMS: ParsedExam[] = [
 
 async function parseRoutineFile(file: File): Promise<ParsedExam[]> {
   const extension = file.name.toLowerCase();
-  if (extension.endsWith(".pdf")) return parsePdfFile(file);
-  if (extension.endsWith(".docx") || extension.endsWith(".doc")) return parseDocxFile(file);
   if (
     extension.endsWith(".xlsx") ||
     extension.endsWith(".xls") ||
@@ -99,7 +95,7 @@ async function parseRoutineFile(file: File): Promise<ParsedExam[]> {
   ) {
     return parseExcelFile(file);
   }
-  return [];
+  throw new Error("Please upload an Excel spreadsheet file (.xlsx, .xls, .csv).");
 }
 
 function sortExams(exams: ParsedExam[]) {
@@ -598,16 +594,11 @@ export default function Home() {
 
     const matches = sortExams(
       allExams.filter((exam) =>
-        selectedCourseCodes.some(
-          (code) => normalizeCourseCode(code) === normalizeCourseCode(exam.courseCode)
-        )
+        selectedCourseCodes.some((code) => coursesMatch(code, exam.courseCode))
       )
     );
     const unmatched = selectedCourseCodes.filter(
-      (code) =>
-        !allExams.some(
-          (exam) => normalizeCourseCode(exam.courseCode) === normalizeCourseCode(code)
-        )
+      (code) => !allExams.some((exam) => coursesMatch(code, exam.courseCode))
     );
 
     setGeneratedExams(matches);
@@ -1013,7 +1004,7 @@ export default function Home() {
     {
       question: "Which file types can I upload?",
       answer:
-        "Standard PDF, XLSX, XLS, DOC, and DOCX files are fully supported. The parser automatically detects relevant column headers (Course Code, Date, Time, Room, Faculty) and normalizes the schedule.",
+        "Excel spreadsheet files (.xlsx, .xls, and .csv) are fully supported. The parser automatically scans and detects relevant column headers (Course Code, Date, Time, Starting/Ending Time, Room, Faculty) and synthesizes your personalized schedule.",
     },
     {
       question: "What happens to my data?",
@@ -1231,7 +1222,7 @@ export default function Home() {
                 >
                   <input
                     type="file"
-                    accept=".pdf,.xlsx,.xls,.xlsm,.docx,.doc"
+                    accept=".xlsx,.xls,.xlsm,.csv"
                     onChange={handleFileChange}
                     ref={inputRef}
                     className="sr-only"
@@ -1243,18 +1234,12 @@ export default function Home() {
                       <Upload className="w-5 h-5" />
                     )}
                   </div>
-                  <span className="text-xs font-semibold text-white max-w-[200px] truncate">
-                    {fileName || "Choose an exam routine file"}
+                  <span className="text-xs font-semibold text-white max-w-[240px] truncate">
+                    {fileName || "Choose an exam routine file (Excel .xlsx / .xls)"}
                   </span>
                   <span className="mt-1 flex items-center gap-2" aria-hidden="true">
-                    <span className="inline-flex items-center gap-1 rounded-md border border-rose-400/25 bg-rose-400/10 px-2 py-1 text-[10px] text-rose-200">
-                      <FileText className="h-3 w-3" /> PDF
-                    </span>
                     <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-200">
-                      <FileSpreadsheet className="h-3 w-3" /> XLSX
-                    </span>
-                    <span className="inline-flex items-center gap-1 rounded-md border border-sky-400/25 bg-sky-400/10 px-2 py-1 text-[10px] text-sky-200">
-                      <FileText className="h-3 w-3" /> DOC / DOCX
+                      <FileSpreadsheet className="h-3 w-3" /> Excel (.xlsx / .xls / .csv)
                     </span>
                   </span>
                 </label>
@@ -1521,7 +1506,7 @@ export default function Home() {
                     COURSE CODES
                   </span>
                   <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
-                    PDF / XLSX / DOC
+                    EXCEL .XLSX
                   </span>
                   <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
                     YOUR ROUTINE
@@ -1545,7 +1530,7 @@ export default function Home() {
                 <h3 className="font-semibold text-base text-white">Upload routine</h3>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed">
-                Choose your university routine in PDF, XLSX, or DOC format.
+                Choose your university routine Excel spreadsheet (.xlsx or .xls format).
               </p>
             </div>
 

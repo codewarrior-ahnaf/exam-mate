@@ -45,13 +45,19 @@ interface RowBand {
   tokens: PdfToken[];
 }
 
+interface CellWithBounds {
+  text: string;
+  minX: number;
+  maxX: number;
+}
+
 function cellValue(row: string[], column: number | undefined): string {
   if (column === undefined) return "";
   return (row[column] ?? "").trim();
 }
 
-function clusterBandIntoCells(tokens: PdfToken[], gapThreshold = 8): string[] {
-  const cells: string[] = [];
+function clusterBandIntoCellsWithBounds(tokens: PdfToken[], gapThreshold = 8): CellWithBounds[] {
+  const cells: CellWithBounds[] = [];
   let currentTokens: PdfToken[] = [];
   let lastRight = -1;
 
@@ -61,9 +67,14 @@ function clusterBandIntoCells(tokens: PdfToken[], gapThreshold = 8): string[] {
     const tokWidth = tok.width > 0 ? tok.width : text.length * 6;
     const gap = lastRight >= 0 ? tok.x - lastRight : 0;
 
-    // A gap > 8px represents a column separator in routine tables
     if (currentTokens.length > 0 && gap > gapThreshold) {
-      cells.push(currentTokens.map((t) => t.str.trim()).join(" "));
+      const minX = Math.min(...currentTokens.map((t) => t.x));
+      const maxX = Math.max(...currentTokens.map((t) => t.x + (t.width > 0 ? t.width : t.str.length * 6)));
+      cells.push({
+        text: currentTokens.map((t) => t.str.trim()).join(" "),
+        minX,
+        maxX,
+      });
       currentTokens = [tok];
     } else {
       currentTokens.push(tok);
@@ -72,10 +83,34 @@ function clusterBandIntoCells(tokens: PdfToken[], gapThreshold = 8): string[] {
   }
 
   if (currentTokens.length > 0) {
-    cells.push(currentTokens.map((t) => t.str.trim()).join(" "));
+    const minX = Math.min(...currentTokens.map((t) => t.x));
+    const maxX = Math.max(...currentTokens.map((t) => t.x + (t.width > 0 ? t.width : t.str.length * 6)));
+    cells.push({
+      text: currentTokens.map((t) => t.str.trim()).join(" "),
+      minX,
+      maxX,
+    });
   }
 
   return cells;
+}
+
+function alignTokensToColumns(tokens: PdfToken[], splitXs: number[]): string[] {
+  const colCount = splitXs.length + 1;
+  const colTokens: PdfToken[][] = Array.from({ length: colCount }, () => []);
+
+  for (const tok of tokens) {
+    let colIdx = splitXs.length;
+    for (let i = 0; i < splitXs.length; i++) {
+      if (tok.x < splitXs[i]) {
+        colIdx = i;
+        break;
+      }
+    }
+    colTokens[colIdx].push(tok);
+  }
+
+  return colTokens.map((toks) => toks.map((t) => t.str.trim()).join(" ").trim());
 }
 
 export async function parsePdfFile(file: File): Promise<ParsedExam[]> {
@@ -91,6 +126,11 @@ export async function parsePdfFile(file: File): Promise<ParsedExam[]> {
   const exams = new Map<string, ParsedExam>();
   let activeDate = "";
   let activeTime = "";
+  let activeStartTime = "";
+  let activeEndTime = "";
+
+  let savedHeader: ReturnType<typeof findHeaderRow> | undefined;
+  let savedSplitXs: number[] | undefined;
 
   for (let pageNum = 1; pageNum <= numPages; pageNum += 1) {
     const page = await pdf.getPage(pageNum);
@@ -123,133 +163,145 @@ export async function parsePdfFile(file: File): Promise<ParsedExam[]> {
       }
     }
 
-    // Convert each band to cells
-    const pageRows: string[][] = [];
-    for (const band of bands) {
+    if (!bands.length) continue;
+
+    // Cluster each band to find cells and their physical X bounds
+    const bandCellData = bands.map((band) => {
       band.tokens.sort((a, b) => a.x - b.x);
-      const cells = clusterBandIntoCells(band.tokens, 8);
-      if (cells.length) pageRows.push(cells);
+      return clusterBandIntoCellsWithBounds(band.tokens, 8);
+    });
+
+    const pageRows = bandCellData.map((b) => b.map((c) => c.text));
+
+    // Check if this page has a table header
+    const pageHeader = findHeaderRow(pageRows, !activeDate);
+    let currentHeader = pageHeader;
+    let currentSplitXs: number[] | undefined;
+
+    if (pageHeader && pageHeader.columns.courseCode !== undefined) {
+      // Calculate column split X coordinates from the header cells
+      const headerBandIdx = pageHeader.index;
+      const headerCells = bandCellData[headerBandIdx];
+      if (headerCells && headerCells.length > 1) {
+        currentSplitXs = [];
+        for (let i = 0; i < headerCells.length - 1; i++) {
+          const split = (headerCells[i].maxX + headerCells[i + 1].minX) / 2;
+          currentSplitXs.push(split);
+        }
+        savedHeader = pageHeader;
+        savedSplitXs = currentSplitXs;
+      }
+    } else if (savedHeader && savedSplitXs) {
+      // Reuse table header columns and X-splits from previous page
+      currentHeader = savedHeader;
+      currentSplitXs = savedSplitXs;
     }
 
-    if (!pageRows.length) continue;
+    if (currentHeader && currentHeader.columns.courseCode !== undefined && currentSplitXs) {
+      const startBandIdx = pageHeader ? pageHeader.index + (pageHeader.headerRowCount ?? 1) : 0;
 
-    // Check if this page contains a recognizable table header
-    const header = findHeaderRow(pageRows, !activeDate);
+      for (let bIdx = startBandIdx; bIdx < bands.length; bIdx++) {
+        const band = bands[bIdx];
+        const row = alignTokensToColumns(band.tokens, currentSplitXs);
 
-    if (header && header.columns.courseCode !== undefined) {
-      // Process using recognized header columns (matching Excel-level precision)
-      for (const row of pageRows.slice(header.index + 1)) {
-        const courseCode = cellValue(row, header.columns.courseCode);
-        const dateCell = cellValue(row, header.columns.date);
+        // 1. Course code
+        let courseCode = cellValue(row, currentHeader.columns.courseCode);
+        if (!courseCode) {
+          for (const cell of row) {
+            const foundCodes = extractCourseCodes(cell);
+            if (foundCodes.length > 0) {
+              courseCode = foundCodes[0].code;
+              break;
+            }
+          }
+        }
+
+        // 2. Date
+        const dateCell = cellValue(row, currentHeader.columns.date);
         if (dateCell && dateCell !== activeDate) {
           activeDate = dateCell;
           activeTime = "";
+          activeStartTime = "";
+          activeEndTime = "";
+        } else if (!activeDate) {
+          const detected = extractDateFromText(row.join(" "));
+          if (detected) activeDate = detected.raw;
         }
         const rawDate = dateCell || activeDate;
 
-        const timeCell = cellValue(row, header.columns.time);
-        if (timeCell) {
-          activeTime = timeCell;
+        // 3. Time
+        const timeCell = cellValue(row, currentHeader.columns.time);
+        const startCell = cellValue(row, currentHeader.columns.startTime);
+        const endCell = cellValue(row, currentHeader.columns.endTime);
+
+        if (timeCell) activeTime = timeCell;
+        if (startCell) activeStartTime = startCell;
+        if (endCell) activeEndTime = endCell;
+
+        if (!timeCell && !startCell && !endCell && !activeTime && (!activeStartTime || !activeEndTime)) {
+          const detectedTime = extractTimeFromText(row.join(" "));
+          if (detectedTime) {
+            activeTime = detectedTime.raw;
+            activeStartTime = detectedTime.start;
+            activeEndTime = detectedTime.end;
+          }
         }
+
         const rawTime = timeCell || activeTime;
+        const rawStartTime = startCell || activeStartTime;
+        const rawEndTime = endCell || activeEndTime;
 
         if (!courseCode || !rawDate) continue;
 
         const exam = normalizeRow({
           courseCode,
-          courseTitle: cellValue(row, header.columns.courseTitle) || "Exam",
+          courseTitle: cellValue(row, currentHeader.columns.courseTitle) || "Exam",
           date: rawDate,
           time: rawTime,
-          startTime: cellValue(row, header.columns.startTime),
-          endTime: cellValue(row, header.columns.endTime),
-          faculty: cellValue(row, header.columns.faculty) || "Faculty not listed",
-          program: cellValue(row, header.columns.program) || "General",
+          startTime: rawStartTime,
+          endTime: rawEndTime,
+          faculty: cellValue(row, currentHeader.columns.faculty) || "Faculty not listed",
+          program: cellValue(row, currentHeader.columns.program) || "General",
         });
         if (exam) exams.set(exam.id, exam);
       }
     } else {
       // Dynamic row scanning fallback
-      for (const row of pageRows) {
-        const fullRowText = row.join(" ");
-
-        // Check for Date in this row
+      for (const band of bands) {
+        const fullRowText = band.tokens.map((t) => t.str).join(" ");
         const detectedDate = extractDateFromText(fullRowText);
         if (detectedDate) activeDate = detectedDate.raw;
 
-        // Check for Time in this row
         const detectedTime = extractTimeFromText(fullRowText);
-        if (detectedTime) activeTime = detectedTime.raw;
+        if (detectedTime) {
+          activeTime = detectedTime.raw;
+          activeStartTime = detectedTime.start;
+          activeEndTime = detectedTime.end;
+        }
 
-        const examDate = detectedDate ? detectedDate.raw : activeDate;
-        const examTime = detectedTime ? detectedTime.raw : activeTime;
+        const codes = extractCourseCodes(fullRowText);
+        if (codes.length > 0 && (detectedDate || activeDate) && (detectedTime || activeTime || activeStartTime)) {
+          const examDate = detectedDate ? detectedDate.raw : activeDate;
+          const examTime = detectedTime ? detectedTime.raw : activeTime;
 
-        // Method 1: Check cell-by-cell for course code
-        let matchedAnyInCells = false;
-
-        row.forEach((cell, cellIdx) => {
-          const cellCodes = extractCourseCodes(cell);
-          if (!cellCodes.length) return;
-
-          matchedAnyInCells = true;
-          for (const c of cellCodes) {
-            // Find course title: check adjacent cell first
-            let title = "";
-            if (cellIdx + 1 < row.length) {
-              const nextCell = row[cellIdx + 1].trim();
-              if (
-                nextCell.length > 2 &&
-                !extractDateFromText(nextCell) &&
-                !extractTimeFromText(nextCell) &&
-                !extractCourseCodes(nextCell).length
-              ) {
-                title = nextCell;
-              }
-            }
-            if (!title) {
-              title = extractCleanTitle(fullRowText, c.raw, detectedDate?.raw, detectedTime?.raw);
-            }
-
-            // Try to extract program if present in row
+          for (const c of codes) {
+            const title = extractCleanTitle(fullRowText, c.raw, detectedDate?.raw, detectedTime?.raw);
             const progMatch = fullRowText.match(
               /\b(B\.?Sc(?:\s+in)?\s+[A-Za-z]+|CSE|EEE|BBA|ENG|LLB|PHR|ECO|TEX)\b/i,
             );
             const program = progMatch ? progMatch[0] : "General";
 
-            if (examDate && examTime) {
-              const exam = normalizeRow({
-                courseCode: c.code,
-                courseTitle: title,
-                date: examDate,
-                time: examTime,
-                faculty: "Faculty not listed",
-                program,
-              });
-              if (exam) exams.set(exam.id, exam);
-            }
-          }
-        });
-
-        // Method 2: Fallback for rows where tokens were not separated into distinct cells
-        if (!matchedAnyInCells) {
-          const rowCodes = extractCourseCodes(fullRowText);
-          if (rowCodes.length > 0 && examDate && examTime) {
-            for (const c of rowCodes) {
-              const title = extractCleanTitle(fullRowText, c.raw, detectedDate?.raw, detectedTime?.raw);
-              const progMatch = fullRowText.match(
-                /\b(B\.?Sc(?:\s+in)?\s+[A-Za-z]+|CSE|EEE|BBA|ENG|LLB|PHR|ECO|TEX)\b/i,
-              );
-              const program = progMatch ? progMatch[0] : "General";
-
-              const exam = normalizeRow({
-                courseCode: c.code,
-                courseTitle: title,
-                date: examDate,
-                time: examTime,
-                faculty: "Faculty not listed",
-                program,
-              });
-              if (exam) exams.set(exam.id, exam);
-            }
+            const exam = normalizeRow({
+              courseCode: c.code,
+              courseTitle: title,
+              date: examDate,
+              time: examTime,
+              startTime: activeStartTime,
+              endTime: activeEndTime,
+              faculty: "Faculty not listed",
+              program,
+            });
+            if (exam) exams.set(exam.id, exam);
           }
         }
       }

@@ -41,9 +41,32 @@ function parseTableXml(tblXml: string): string[][] {
 
     while ((tcMatch = tcRegex.exec(trContent)) !== null) {
       const tcContent = tcMatch[0];
-      const tMatches = [...tcContent.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/gi)];
-      const cellText = tMatches.map((m) => m[1]).join("").trim();
+
+      // Check for horizontal merge (gridSpan)
+      const spanMatch = tcContent.match(/<w:gridSpan[^>]*w:val="(\d+)"/i);
+      const span = spanMatch ? Math.max(1, parseInt(spanMatch[1], 10)) : 1;
+
+      // Extract text paragraph by paragraph to maintain clean intra-cell word boundaries
+      const pMatches = [...tcContent.matchAll(/<w:p[\s>][\s\S]*?<\/w:p>/gi)];
+      let cellText = "";
+      if (pMatches.length > 0) {
+        cellText = pMatches
+          .map((p) => {
+            const tMatches = [...p[0].matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/gi)];
+            return tMatches.map((m) => m[1]).join("");
+          })
+          .filter((t) => t.trim().length > 0)
+          .join(" ")
+          .trim();
+      } else {
+        const tMatches = [...tcContent.matchAll(/<w:t[^>]*>([^<]*)<\/w:t>/gi)];
+        cellText = tMatches.map((m) => m[1]).join("").trim();
+      }
+
       row.push(cellText);
+      for (let s = 1; s < span; s++) {
+        row.push("");
+      }
     }
     if (row.length > 0) rows.push(row);
   }
@@ -56,6 +79,8 @@ export async function parseDocxFile(file: File): Promise<ParsedExam[]> {
   const exams = new Map<string, ParsedExam>();
   let activeDate = "";
   let activeTime = "";
+  let activeStartTime = "";
+  let activeEndTime = "";
 
   // Attempt 1: Native DOCX extraction via JSZip (unpacking word/document.xml)
   try {
@@ -83,10 +108,14 @@ export async function parseDocxFile(file: File): Promise<ParsedExam[]> {
           if (detectedDate) activeDate = detectedDate.raw;
 
           const detectedTime = extractTimeFromText(pText);
-          if (detectedTime) activeTime = detectedTime.raw;
+          if (detectedTime) {
+            activeTime = detectedTime.raw;
+            activeStartTime = detectedTime.start;
+            activeEndTime = detectedTime.end;
+          }
 
           const codes = extractCourseCodes(pText);
-          if (codes.length > 0 && (detectedDate || activeDate) && (detectedTime || activeTime)) {
+          if (codes.length > 0 && (detectedDate || activeDate) && (detectedTime || activeTime || activeStartTime)) {
             const examDate = detectedDate ? detectedDate.raw : activeDate;
             const examTime = detectedTime ? detectedTime.raw : activeTime;
 
@@ -97,6 +126,8 @@ export async function parseDocxFile(file: File): Promise<ParsedExam[]> {
                 courseTitle: title,
                 date: examDate,
                 time: examTime,
+                startTime: activeStartTime,
+                endTime: activeEndTime,
                 faculty: "Faculty not listed",
                 program: "General",
               });
@@ -111,20 +142,55 @@ export async function parseDocxFile(file: File): Promise<ParsedExam[]> {
           const header = findHeaderRow(rows, !activeDate);
 
           if (header && header.columns.courseCode !== undefined) {
-            for (const row of rows.slice(header.index + 1)) {
-              const courseCode = cellValue(row, header.columns.courseCode);
+            const skipRows = header.headerRowCount ?? 1;
+            for (const row of rows.slice(header.index + skipRows)) {
+              // 1. Course code
+              let courseCode = cellValue(row, header.columns.courseCode);
+              if (!courseCode) {
+                // If not in primary column, scan cells in this row
+                for (const cell of row) {
+                  const foundCodes = extractCourseCodes(cell);
+                  if (foundCodes.length > 0) {
+                    courseCode = foundCodes[0].code;
+                    break;
+                  }
+                }
+              }
+
+              // 2. Date
               const dateCell = cellValue(row, header.columns.date);
               if (dateCell && dateCell !== activeDate) {
                 activeDate = dateCell;
                 activeTime = "";
+                activeStartTime = "";
+                activeEndTime = "";
+              } else if (!activeDate) {
+                const detected = extractDateFromText(row.join(" "));
+                if (detected) activeDate = detected.raw;
               }
               const rawDate = dateCell || activeDate;
 
+              // 3. Time (check specific columns first, then fallbacks)
               const timeCell = cellValue(row, header.columns.time);
-              if (timeCell) {
-                activeTime = timeCell;
+              const startCell = cellValue(row, header.columns.startTime);
+              const endCell = cellValue(row, header.columns.endTime);
+
+              if (timeCell) activeTime = timeCell;
+              if (startCell) activeStartTime = startCell;
+              if (endCell) activeEndTime = endCell;
+
+              if (!timeCell && !startCell && !endCell && !activeTime && (!activeStartTime || !activeEndTime)) {
+                const detectedTime = extractTimeFromText(row.join(" "));
+                if (detectedTime) {
+                  activeTime = detectedTime.raw;
+                  activeStartTime = detectedTime.start;
+                  activeEndTime = detectedTime.end;
+                }
               }
+
               const rawTime = timeCell || activeTime;
+              const rawStartTime = startCell || activeStartTime;
+              const rawEndTime = endCell || activeEndTime;
 
               if (!courseCode || !rawDate) continue;
 
@@ -133,8 +199,8 @@ export async function parseDocxFile(file: File): Promise<ParsedExam[]> {
                 courseTitle: cellValue(row, header.columns.courseTitle) || "Exam",
                 date: rawDate,
                 time: rawTime,
-                startTime: cellValue(row, header.columns.startTime),
-                endTime: cellValue(row, header.columns.endTime),
+                startTime: rawStartTime,
+                endTime: rawEndTime,
                 faculty: cellValue(row, header.columns.faculty) || "Faculty not listed",
                 program: cellValue(row, header.columns.program) || "General",
               });
@@ -148,10 +214,14 @@ export async function parseDocxFile(file: File): Promise<ParsedExam[]> {
               if (detectedDate) activeDate = detectedDate.raw;
 
               const detectedTime = extractTimeFromText(fullRowText);
-              if (detectedTime) activeTime = detectedTime.raw;
+              if (detectedTime) {
+                activeTime = detectedTime.raw;
+                activeStartTime = detectedTime.start;
+                activeEndTime = detectedTime.end;
+              }
 
               const codes = extractCourseCodes(fullRowText);
-              if (codes.length > 0 && (detectedDate || activeDate) && (detectedTime || activeTime)) {
+              if (codes.length > 0 && (detectedDate || activeDate) && (detectedTime || activeTime || activeStartTime)) {
                 const examDate = detectedDate ? detectedDate.raw : activeDate;
                 const examTime = detectedTime ? detectedTime.raw : activeTime;
 
