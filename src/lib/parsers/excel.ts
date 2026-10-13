@@ -100,6 +100,7 @@ export async function parseExcelFile(file: File): Promise<ParsedExam[]> {
         endTime: rawEndTime,
         faculty: cellValue(row, header.columns.faculty),
         program: cellValue(row, header.columns.program),
+        section: cellValue(row, header.columns.section),
       });
 
       if (exam) exams.set(exam.id, exam);

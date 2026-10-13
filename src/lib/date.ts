@@ -33,23 +33,50 @@ export function normalizeCourseCode(value: string): string {
     .toUpperCase();
 }
 
+export function hasIncompleteTrailingDot(value: string): boolean {
+  const trimmed = (value ?? "").toString().trim();
+  return trimmed.endsWith(".") || (trimmed.includes(".") && !/\.\d+/.test(trimmed));
+}
+
 export function coursesMatch(query: string, routineCode: string): boolean {
   const qNorm = normalizeCourseCode(query);
   const rNorm = normalizeCourseCode(routineCode);
   if (!qNorm || !rNorm) return false;
   if (qNorm === rNorm) return true;
 
+  // Check section suffixes (.1, .5, .12, etc.)
+  const qSectionMatch = qNorm.match(/\.(\d+)$/);
+  const rSectionMatch = rNorm.match(/\.(\d+)$/);
+
   // Compare base course codes (strip section suffix like .5 or .6)
   const qBase = qNorm.replace(/\.\d+$/, "");
   const rBase = rNorm.replace(/\.\d+$/, "");
-  if (qBase && rBase && qBase === rBase) return true;
 
-  // Strip all non-alphanumeric
-  const qClean = qNorm.replace(/[^A-Z0-9]/g, "");
-  const rClean = rNorm.replace(/[^A-Z0-9]/g, "");
-  if (qClean && rClean && qClean === rClean) return true;
+  // Compare alphanumeric bases
+  const qClean = qBase.replace(/[^A-Z0-9]/g, "");
+  const rClean = rBase.replace(/[^A-Z0-9]/g, "");
+  if (!qClean || !rClean || qClean !== rClean) return false;
 
-  return false;
+  // Base codes match (e.g. CSE181 == CSE181).
+  // If BOTH query and routine specify a section:
+  if (qSectionMatch && rSectionMatch) {
+    // Exact match of section number required (e.g. .5 vs .5)
+    return Number(qSectionMatch[1]) === Number(rSectionMatch[1]);
+  }
+
+  // If query specified a section (e.g. CSE181.5) but routine has no section (CSE181):
+  // The routine lists the common exam for that course, so allow match.
+  if (qSectionMatch && !rSectionMatch) {
+    return true;
+  }
+
+  // If query did not specify a section (e.g. CSE181), but routine has sections (CSE181.1, CSE181.5):
+  // Query without section covers the course.
+  if (!qSectionMatch && rSectionMatch) {
+    return true;
+  }
+
+  return true;
 }
 
 const MONTH_NAMES: Record<string, number> = {

@@ -22,6 +22,7 @@ export type HeaderField =
   | "endTime"
   | "faculty"
   | "program"
+  | "section"
   | "room";
 
 export type HeaderColumns = Partial<Record<HeaderField, number>>;
@@ -140,6 +141,16 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
     "teachers initial",
     "invigilator",
   ],
+  section: [
+    "section",
+    "sec",
+    "sec.",
+    "section no",
+    "section no.",
+    "sec no",
+    "sec no.",
+    "section number",
+  ],
   program: [
     "program",
     "programme",
@@ -149,8 +160,6 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
     "semester",
     "batch",
     "degree",
-    "section",
-    "sec",
   ],
   room: ["room", "room no", "room no.", "hall", "room number", "venue", "lab"],
 };
@@ -280,13 +289,25 @@ export function getHeaderField(value: unknown): HeaderField | undefined {
     return "faculty";
   }
 
+  // 8.5 Section (check before program)
+  if (
+    h === "section" ||
+    h === "sec" ||
+    h === "sec." ||
+    h === "sec no" ||
+    h === "section no" ||
+    h.startsWith("section") ||
+    h.startsWith("sec ")
+  ) {
+    return "section";
+  }
+
   // 9. Program
   if (
     h.includes("dept") ||
     h.includes("program") ||
     h.includes("batch") ||
-    h.includes("semester") ||
-    h.includes("section")
+    h.includes("semester")
   ) {
     return "program";
   }
@@ -372,10 +393,27 @@ export function normalizeRow(raw: Record<string, unknown>): ParsedExam | null {
   );
   if (!rawCodeText) return null;
 
-  // Extract pure course code (e.g. "CSE 101 - Programming" -> "CSE101")
+  // Extract pure course code (e.g. "CSE 101 - Programming" -> "CSE101" or "CSE 181.5" -> "CSE181.5")
   const extractedCodes = extractCourseCodes(rawCodeText);
-  const courseCode = extractedCodes.length > 0 ? extractedCodes[0].code : normalizeCourseCode(rawCodeText);
+  let courseCode = extractedCodes.length > 0 ? extractedCodes[0].code : normalizeCourseCode(rawCodeText);
   if (!courseCode) return null;
+
+  // If the extracted code does not have a section dot (.5), check if section is present in raw.section, raw.program, or rawCodeText
+  if (!/\.\d+$/.test(courseCode)) {
+    const rawSection = normalizeText(
+      raw.section ?? raw["Section"] ?? raw["Sec"] ?? raw["Sec."] ?? raw.program,
+      "",
+    );
+    const secMatch = rawSection.match(/^(?:sec(?:tion)?[:\s.-]*)?(\d{1,3})$/i);
+    if (secMatch) {
+      courseCode = `${courseCode}.${Number(secMatch[1])}`;
+    } else {
+      const inlineSec = rawCodeText.match(/\bsec(?:tion)?\.?\s*(\d{1,3})\b/i);
+      if (inlineSec) {
+        courseCode = `${courseCode}.${Number(inlineSec[1])}`;
+      }
+    }
+  }
 
   let courseTitle = normalizeText(
     raw.courseTitle ?? raw["Course Title"] ?? raw["Course title"] ?? raw["Title"],

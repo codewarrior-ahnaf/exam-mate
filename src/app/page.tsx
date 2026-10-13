@@ -24,7 +24,7 @@ import {
 import { GState, jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { authClient } from "@/lib/auth-client";
-import { formatDate, formatTime, normalizeCourseCode, coursesMatch } from "@/lib/date";
+import { formatDate, formatTime, normalizeCourseCode, coursesMatch, hasIncompleteTrailingDot } from "@/lib/date";
 import { parseExcelFile } from "@/lib/parsers/excel";
 import type { ParsedExam } from "@/lib/parsers/normalize";
 import PageLoadingSkeleton from "./loading-skeleton";
@@ -82,6 +82,26 @@ const SAMPLE_EXAMS: ParsedExam[] = [
     endTime: "12:00",
     faculty: "Ms. T. Sultana (Room 602)",
     program: "General Education",
+  },
+  {
+    id: "CSE181.1-2026-10-31-10:00",
+    courseCode: "CSE181.1",
+    courseTitle: "Data Structures & Algorithms (Sec 1)",
+    date: "2026-10-31",
+    startTime: "10:00",
+    endTime: "12:00",
+    faculty: "Dr. A. Islam (Room 401)",
+    program: "B.Sc. in CSE",
+  },
+  {
+    id: "CSE181.5-2026-10-31-14:00",
+    courseCode: "CSE181.5",
+    courseTitle: "Data Structures & Algorithms (Sec 5)",
+    date: "2026-10-31",
+    startTime: "14:00",
+    endTime: "16:00",
+    faculty: "Prof. H. Kabir (Room 405)",
+    program: "B.Sc. in CSE",
   },
 ];
 
@@ -399,8 +419,9 @@ export default function Home() {
       new Set(
         courseInput
           .split(/[\n,]+/)
+          .map((value) => value.trim().toUpperCase())
+          .filter((value) => Boolean(value) && !hasIncompleteTrailingDot(value))
           .map((value) => normalizeCourseCode(value))
-          .filter(Boolean)
       )
     );
   }, [courseInput]);
@@ -559,16 +580,28 @@ export default function Home() {
   }
 
   function addCourseCodes(value: string) {
-    const codes = value
-      .split(/[\n,]+/)
-      .map((code) => normalizeCourseCode(code))
-      .filter(Boolean);
-    if (codes.length) {
+    const rawTokens = value.split(/[\n,]+/);
+    const validCodes: string[] = [];
+    let remainingDraft = "";
+
+    rawTokens.forEach((token, index) => {
+      const trimmed = token.trim().toUpperCase();
+      if (!trimmed) return;
+      if (hasIncompleteTrailingDot(trimmed)) {
+        if (index === rawTokens.length - 1) {
+          remainingDraft = trimmed;
+        }
+        return;
+      }
+      validCodes.push(normalizeCourseCode(trimmed));
+    });
+
+    if (validCodes.length) {
       setCourseInput(
-        Array.from(new Set([...selectedCourseCodes, ...codes])).join(", ")
+        Array.from(new Set([...selectedCourseCodes, ...validCodes])).join(", ")
       );
     }
-    setCourseDraft(value.split(/[\n,]+/).at(-1)?.trim() ?? "");
+    setCourseDraft(remainingDraft);
   }
 
   function removeCourseCode(codeToRemove: string) {
@@ -592,11 +625,39 @@ export default function Home() {
     setError("");
     setMessage("");
 
-    const matches = sortExams(
-      allExams.filter((exam) =>
-        selectedCourseCodes.some((code) => coursesMatch(code, exam.courseCode))
-      )
-    );
+    // Strictly match selected course codes (matching exact section when specified e.g. CSE181.5)
+    const matchedExams: ParsedExam[] = [];
+    for (const exam of allExams) {
+      const matchedUserCode = selectedCourseCodes.find((code) =>
+        coursesMatch(code, exam.courseCode)
+      );
+      if (matchedUserCode) {
+        // If the user specified a section (e.g. CSE181.5) but the routine had no section (CSE181),
+        // display the user's specific code in the table for clear identification
+        const userHasSection = /\.\d+$/.test(matchedUserCode);
+        const routineHasSection = /\.\d+$/.test(exam.courseCode);
+        const finalCourseCode =
+          userHasSection && !routineHasSection ? matchedUserCode : exam.courseCode;
+
+        matchedExams.push({
+          ...exam,
+          courseCode: finalCourseCode,
+        });
+      }
+    }
+
+    // Deduplicate any repeated entries by courseCode, date, and time
+    const seenExamKeys = new Set<string>();
+    const uniqueMatches: ParsedExam[] = [];
+    for (const item of matchedExams) {
+      const key = `${item.courseCode}|${item.date}|${item.startTime}`;
+      if (!seenExamKeys.has(key)) {
+        seenExamKeys.add(key);
+        uniqueMatches.push(item);
+      }
+    }
+
+    const matches = sortExams(uniqueMatches);
     const unmatched = selectedCourseCodes.filter(
       (code) => !allExams.some((exam) => coursesMatch(code, exam.courseCode))
     );
@@ -627,7 +688,7 @@ export default function Home() {
   function handleLoadSample() {
     setAllExams(SAMPLE_EXAMS);
     setFileName("Sample_Exam_Routine_Fall2026.xlsx");
-    setCourseInput("CSE101, CSE102, MAT101");
+    setCourseInput("CSE101, CSE181.5, MAT101");
     setMessage("Sample routine loaded. Click Generate to build your table.");
   }
 
@@ -1286,7 +1347,7 @@ export default function Home() {
                   type="text"
                   value={courseDraft}
                   onChange={(event) => {
-                    const value = event.target.value;
+                    const value = event.target.value.toUpperCase();
                     if (/[\n,]/.test(value)) {
                       addCourseCodes(value);
                     } else {
@@ -1296,7 +1357,12 @@ export default function Home() {
                   onKeyDown={(event) => {
                     if (event.key === "Enter") {
                       event.preventDefault();
-                      addCourseCodes(`${courseDraft},`);
+                      const trimmed = courseDraft.trim().toUpperCase();
+                      if (!trimmed || hasIncompleteTrailingDot(trimmed)) {
+                        // Incomplete dot without number: do not add to input
+                        return;
+                      }
+                      addCourseCodes(`${trimmed},`);
                     } else if (
                       event.key === "Backspace" &&
                       !courseDraft &&
@@ -1306,16 +1372,25 @@ export default function Home() {
                     }
                   }}
                   onBlur={() => {
-                    if (courseDraft.trim()) addCourseCodes(`${courseDraft},`);
+                    const trimmed = courseDraft.trim().toUpperCase();
+                    if (trimmed && !hasIncompleteTrailingDot(trimmed)) {
+                      addCourseCodes(`${trimmed},`);
+                    }
                   }}
-                  placeholder="Add a course code…"
-                  className="min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code text-white placeholder:text-slate-500 focus:outline-none focus:ring-0"
+                  placeholder="Add course code (e.g. CSE181.5)…"
+                  className="min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0"
                   aria-describedby="course-codes-hint"
                 />
                 </div>
-                <p id="course-codes-hint" className="text-[11px] text-[#94A3B8]">
-                  Press Enter or use a comma to add each course.
-                </p>
+                {hasIncompleteTrailingDot(courseDraft) ? (
+                  <p id="course-codes-hint" className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
+                    <span>Dot (.) এর পর সেকশন নাম্বার লিখুন (যেমন .5), তারপর Enter চাপুন।</span>
+                  </p>
+                ) : (
+                  <p id="course-codes-hint" className="text-[11px] text-[#94A3B8]">
+                    Press Enter or use a comma to add each course (e.g. CSE181.5).
+                  </p>
+                )}
               </div>
 
               {/* Glowing "Generate" button and "Clear My Data" ghost button */}
