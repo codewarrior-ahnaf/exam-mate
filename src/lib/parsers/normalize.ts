@@ -5,6 +5,8 @@ export type ParsedExam = {
   courseCode: string;
   courseTitle: string;
   date: string;
+  /** Date text as it appeared in the uploaded routine, for display/export. */
+  displayDate?: string;
   startTime: string;
   endTime: string;
   faculty: string;
@@ -48,6 +50,7 @@ export function normalizeRow(raw: Record<string, unknown>): ParsedExam | null {
     courseCode,
     courseTitle,
     date: isoDate,
+    displayDate: rawDate,
     startTime,
     endTime,
     faculty,

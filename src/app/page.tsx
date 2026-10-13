@@ -14,6 +14,7 @@ import {
   Info,
   LoaderCircle,
   Printer,
+  Send,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -111,6 +112,10 @@ function getDayName(isoDate: string): string {
   return new Intl.DateTimeFormat("en-US", { weekday: "long" }).format(date);
 }
 
+function formatExamDate(exam: ParsedExam): string {
+  return (exam.displayDate?.trim() || formatDate(exam.date)).replace(/(\d)\.(?=\d)/g, "$1/");
+}
+
 function formatFaculty(faculty: string): string {
   if (/^faculty not listed$/i.test(faculty.trim())) return "—";
   const name = faculty
@@ -137,16 +142,17 @@ function formatFaculty(faculty: string): string {
 }
 
 function formatGeneratedDate(date: Date): string {
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  return `${day}-${month}-${date.getFullYear()}`;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(date);
 }
 
 function isValidStoredRoutine(value: unknown): value is {
   version: number;
   savedAt: string;
   expiresAt: string;
-  courseCodes: string[];
   exams: ParsedExam[];
 } {
   if (!value || typeof value !== "object") return false;
@@ -155,7 +161,6 @@ function isValidStoredRoutine(value: unknown): value is {
     typeof candidate.version === "number" &&
     typeof candidate.savedAt === "string" &&
     typeof candidate.expiresAt === "string" &&
-    Array.isArray(candidate.courseCodes) &&
     Array.isArray(candidate.exams)
   );
 }
@@ -305,6 +310,71 @@ function CustomScrollbar() {
   );
 }
 
+function LazySection({
+  children,
+  id,
+  className,
+  minHeight,
+  as: Tag = "section",
+}: {
+  children: React.ReactNode;
+  id?: string;
+  className: string;
+  minHeight: string;
+  as?: "section" | "footer";
+}) {
+  const sectionRef = useRef<HTMLDivElement | null>(null);
+  const [isNearViewport, setIsNearViewport] = useState(false);
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (!section) return;
+    if (!("IntersectionObserver" in window)) {
+      setIsNearViewport(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry?.isIntersecting) {
+          setIsNearViewport(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "140px 0px" }
+    );
+    observer.observe(section);
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <Tag
+      id={id}
+      className={className}
+      aria-busy={!isNearViewport}
+    >
+      {isNearViewport ? (
+        children
+      ) : (
+        <div
+          ref={sectionRef}
+          aria-hidden="true"
+          className="min-h-[inherit] w-full animate-pulse rounded-2xl border border-teal-500/15 bg-[#0d1b22]/45 p-5"
+          style={{ minHeight }}
+        >
+          <div className="mb-6 h-4 w-1/3 rounded-full bg-teal-100/10" />
+          <div className="mb-3 h-3 w-2/3 rounded-full bg-teal-100/[0.07]" />
+          <div className="h-3 w-1/2 rounded-full bg-teal-100/[0.07]" />
+          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div className="h-24 rounded-xl border border-teal-100/[0.06] bg-teal-100/[0.035]" />
+            <div className="h-24 rounded-xl border border-teal-100/[0.06] bg-teal-100/[0.035]" />
+          </div>
+        </div>
+      )}
+    </Tag>
+  );
+}
+
 export default function Home() {
   const { data: authSession } = authClient.useSession();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -312,7 +382,7 @@ export default function Home() {
   const [uploading, setUploading] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [fileName, setFileName] = useState("");
-  const [courseInput, setCourseInput] = useState("CSE101, CSE102, CSE103");
+  const [courseInput, setCourseInput] = useState("");
   const [courseDraft, setCourseDraft] = useState("");
   const [allExams, setAllExams] = useState<ParsedExam[]>([]);
   const [generatedExams, setGeneratedExams] = useState<ParsedExam[]>([]);
@@ -320,6 +390,8 @@ export default function Home() {
   const [error, setError] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [calendarSyncing, setCalendarSyncing] = useState(false);
+  const lastCalendarSyncRef = useRef("");
   const [isDragOver, setIsDragOver] = useState(false);
   const [activeModal, setActiveModal] = useState<"privacy" | "terms" | null>(null);
 
@@ -358,7 +430,6 @@ export default function Home() {
       }
 
       setGeneratedExams(validExams);
-      setCourseInput(parsed.courseCodes.join(", "));
       setSavedNotice(
         `Routine restored · expires on ${formatDate(parsed.expiresAt.slice(0, 10))}`
       );
@@ -385,14 +456,51 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [savedNotice]);
 
-  function persistRoutine(exams: ParsedExam[], codes: string[]) {
+  async function syncCalendar(exams = generatedExams) {
+    if (!authSession || !exams.length) return;
+    setCalendarSyncing(true);
+    try {
+      const response = await fetch("/api/calendar/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ exams }),
+      });
+      const responseText = await response.text();
+      let result: { synced?: number; error?: string };
+      try {
+        result = JSON.parse(responseText) as { synced?: number; error?: string };
+      } catch {
+        throw new Error(
+          response.ok
+            ? "The server returned an unreadable Calendar response. Please try again."
+            : `Calendar sync failed with a server error (${response.status}). Please try again later.`
+        );
+      }
+      if (!response.ok) throw new Error(result.error || "Could not sync Google Calendar.");
+      setMessage(`${result.synced ?? exams.length} exam${(result.synced ?? exams.length) === 1 ? "" : "s"} synced to Google Calendar with 24-hour reminders.`);
+    } catch (syncError) {
+      lastCalendarSyncRef.current = "";
+      setError(syncError instanceof Error ? syncError.message : "Could not sync Google Calendar.");
+    } finally {
+      setCalendarSyncing(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!authSession || !generatedExams.length) return;
+    const syncKey = JSON.stringify(generatedExams);
+    if (lastCalendarSyncRef.current === syncKey) return;
+    lastCalendarSyncRef.current = syncKey;
+    void syncCalendar(generatedExams);
+  }, [authSession, generatedExams]);
+
+  function persistRoutine(exams: ParsedExam[]) {
     const savedAt = new Date();
     const expiresAt = new Date(savedAt.getTime() + 15 * 24 * 60 * 60 * 1000);
     const payload = {
       version: 1,
       savedAt: savedAt.toISOString(),
       expiresAt: expiresAt.toISOString(),
-      courseCodes: codes,
       exams: sortExams(exams),
     };
 
@@ -495,7 +603,7 @@ export default function Home() {
     );
 
     setGeneratedExams(matches);
-    persistRoutine(matches, selectedCourseCodes);
+    persistRoutine(matches);
 
     if (!matches.length) {
       setError(`No matches found for: ${unmatched.join(", ")} in routine.`);
@@ -525,6 +633,7 @@ export default function Home() {
   }
 
   function clearSavedRoutine() {
+    lastCalendarSyncRef.current = "";
     setGeneratedExams([]);
     setCourseInput("");
     setCourseDraft("");
@@ -562,6 +671,32 @@ export default function Home() {
     }
   }
 
+  async function handleGoogleDisconnect() {
+    setGoogleLoading(true);
+    setError("");
+    try {
+      const disconnectResponse = await fetch("/api/calendar/disconnect", { method: "POST" });
+      const disconnectText = await disconnectResponse.text();
+      let disconnectResult: { disconnected?: boolean; error?: string };
+      try {
+        disconnectResult = JSON.parse(disconnectText) as { disconnected?: boolean; error?: string };
+      } catch {
+        throw new Error("Google disconnect failed because the server returned an invalid response.");
+      }
+      if (!disconnectResponse.ok) {
+        throw new Error(disconnectResult.error || "Google disconnect could not be completed.");
+      }
+      const result = await authClient.signOut();
+      if (result?.error) throw new Error(result.error.message || "Google disconnect could not be completed.");
+      lastCalendarSyncRef.current = "";
+      setMessage("Google disconnected. Exams already synced remain in your Google Calendar.");
+    } catch (disconnectError) {
+      setError(disconnectError instanceof Error ? disconnectError.message : "Google disconnect could not be completed.");
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
   function exportPdf() {
     if (!generatedExams.length) {
       setError("Synthesize your exam table first before exporting a PDF.");
@@ -584,7 +719,7 @@ export default function Home() {
     doc.line(14, 32, pageWidth - 14, 32);
 
     const rows = generatedExams.map((exam) => [
-      formatDate(exam.date),
+      formatExamDate(exam),
       getDayName(exam.date),
       `${formatTime(exam.startTime)} – ${formatTime(exam.endTime)}`,
       exam.courseCode,
@@ -673,7 +808,7 @@ export default function Home() {
     {
       question: "Can I sync my schedule to Google Calendar?",
       answer:
-        "Calendar syncing is not available yet. You can review, print, or download your exam table as a PDF without connecting an account.",
+        "Yes. Connect Google and generate your schedule to add each exam to your primary Google Calendar with its course code, date, and time. ExamMate sets a Google Calendar popup reminder 24 hours before each exam. Click the connected Google icon in the navbar to sync again after updating your schedule.",
     },
   ];
 
@@ -687,45 +822,62 @@ export default function Home() {
       </div>
 
       {/* Main Container */}
-      <div className="relative z-10 w-full max-w-[1240px] px-4 sm:px-6 lg:px-8 pt-4 pb-20 flex flex-col gap-10">
+      <div className="relative z-10 w-full max-w-[1240px] px-3 pt-3 pb-16 flex flex-col gap-8 sm:px-6 sm:pt-4 sm:pb-20 sm:gap-10 lg:px-8">
 
         {/* NAVBAR */}
-        <header className="order-1 z-20 w-full rounded-2xl glass-panel border border-teal-500/30 px-4 py-2.5 flex items-center justify-between shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
+        <header className="order-1 z-20 w-full rounded-2xl glass-panel border border-teal-500/30 px-2.5 py-2 sm:px-4 sm:py-2.5 flex items-center justify-between gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           {/* Left: icon.svg logo + ExamMate */}
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2 sm:gap-3">
             <img
               src="/icon.svg"
               alt="ExamMate Logo"
-              className="w-7 h-7 rounded-lg shadow-[0_0_15px_rgba(94,234,212,0.35)]"
+              className="h-6 w-6 shrink-0 sm:h-7 sm:w-7"
             />
-            <span className="text-xl font-bold tracking-tight text-white">
+            <span className="whitespace-nowrap text-[17px] font-bold tracking-tight text-white sm:text-xl">
               Exam<span className="text-neon-mint">Mate</span>
             </span>
           </div>
 
-          {/* Google sign-in uses the same restrained dark-and-mint palette as the page. */}
-          <button
-            type="button"
-            onClick={handleGoogleConnect}
-            disabled={googleLoading}
-            className="google-connect-button group inline-flex items-center gap-2.5 rounded-xl border border-teal-300/30 bg-[#0e1b21]/75 px-3.5 py-2 text-xs font-semibold text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-teal-300/60 hover:bg-teal-300/[0.08] hover:text-white disabled:cursor-wait disabled:opacity-70 sm:px-4"
-          >
-            {googleLoading ? (
-              <LoaderCircle className="w-3.5 h-3.5 animate-spin text-teal-400" />
-            ) : (
-              <span
-                className="google-logo flex h-5 w-5 items-center justify-center text-[22px] font-black leading-none"
+          {/* Google connection action follows the dark glass and mint page palette. */}
+          <div className="group/google relative mr-0.5 shrink-0 sm:mr-1">
+            {!authSession && (
+              <Send
                 aria-hidden="true"
-              >
-                G
-              </span>
+                className="pointer-events-none absolute -right-1.5 -top-2.5 z-10 h-4 w-4 rotate-[-10deg] fill-[#5EEAD4] text-[#5EEAD4] drop-shadow-[0_0_7px_rgba(94,234,212,0.8)] sm:-right-2 sm:-top-3 sm:h-5 sm:w-5"
+              />
             )}
-            <span>{authSession ? "Google Connected" : "Connect Google"}</span>
-          </button>
+            <button
+              type="button"
+              onClick={authSession ? handleGoogleDisconnect : handleGoogleConnect}
+              disabled={googleLoading || calendarSyncing || (!authSession && generatedExams.length === 0)}
+              aria-label={authSession ? "Disconnect Google. Synced events will remain in Google Calendar." : generatedExams.length ? "Connect Google and sync this routine" : "Generate a routine before connecting Google"}
+              className={`google-connect-button group ${
+                authSession
+                  ? "google-connect-button--connected"
+                  : generatedExams.length
+                    ? "google-connect-button--ready google-connect-button--connect"
+                    : "google-connect-button--disabled google-connect-button--connect"
+              }`}
+            >
+              {googleLoading || calendarSyncing ? (
+                <LoaderCircle className="h-5 w-5 animate-spin text-teal-300" />
+              ) : (
+                <img src="/google-logo.png" alt="" aria-hidden="true" className="google-connect-logo shrink-0" />
+              )}
+              {!authSession && <span className="whitespace-nowrap text-[11px] font-medium tracking-wide sm:text-[13px]">Connect Google</span>}
+            </button>
+            <span role="tooltip" className="pointer-events-none absolute right-0 top-[calc(100%+1.25rem)] z-50 w-max max-w-[min(18rem,calc(100vw-2rem))] translate-y-1 rounded-lg border border-teal-200/25 bg-[#0b171f]/95 px-3 py-2 text-xs leading-relaxed text-teal-50 opacity-0 shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-200 group-hover/google:translate-y-0 group-hover/google:opacity-100 group-focus-within/google:translate-y-0 group-focus-within/google:opacity-100">
+              {authSession
+                ? "Connected Google. Click to Disconnect"
+                : generatedExams.length
+                  ? "Connect Google to sync this exam routine and set reminders."
+                  : "Generate your exam routine before connecting Google."}
+            </span>
+          </div>
         </header>
 
         {/* HERO SECTION */}
-        <section className="order-2 relative w-full pt-2 lg:pt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
+        <LazySection className="order-2 relative w-full pt-2 lg:pt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start" minHeight="460px">
           {/* Left Side: Headline, Subheadline, Buttons */}
           <div className="lg:col-span-7 flex flex-col items-start gap-5">
             <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black uppercase tracking-tight text-white leading-[1.08]">
@@ -822,10 +974,10 @@ export default function Home() {
             </div>
 
           </div>
-        </section>
+        </LazySection>
 
         {/* MAIN DASHBOARD */}
-        <section id="generator" className="order-4 w-full pt-6">
+        <LazySection id="generator" className="order-4 w-full pt-6" minHeight="620px">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
             {/* Left part of container */}
             <div className="lg:col-span-8 glass-panel rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
@@ -1036,10 +1188,10 @@ export default function Home() {
               </div>
             </div>
           </div>
-        </section>
+        </LazySection>
 
         {/* HOW IT WORKS (THE BLUEPRINT OF EXECUTION) */}
-        <section id="how-it-works" className="order-3 w-full pt-8 flex flex-col gap-6">
+        <LazySection id="how-it-works" className="order-3 w-full pt-8 flex flex-col gap-6" minHeight="420px">
           {/* Headline */}
           <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
             <div>
@@ -1206,10 +1358,10 @@ export default function Home() {
               </p>
             </div>
           </div>
-        </section>
+        </LazySection>
 
         {/* TABLE SECTION */}
-        <section id="results" className="order-5 w-full pt-8 flex flex-col gap-4">
+        <LazySection id="results" className="order-5 w-full pt-8 flex flex-col gap-4" minHeight="360px">
           {/* Header */}
           <div className="results-heading no-print flex flex-wrap items-end justify-between gap-3 border-b border-teal-500/20 pb-3">
             <div>
@@ -1219,10 +1371,15 @@ export default function Home() {
               <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
                 Your generated exam table
               </h2>
+              {generatedExams.length > 0 && (
+                <p className="mt-1 text-xs text-[#94A3B8]">
+                  Generated: {formatGeneratedDate(new Date())}
+                </p>
+              )}
             </div>
 
             {generatedExams.length > 0 && (
-              <div className="flex items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button
                   type="button"
                   onClick={exportPdf}
@@ -1238,7 +1395,7 @@ export default function Home() {
                   className="no-print btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs"
                 >
                   <Printer className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Print</span>
+                  <span>Print PDF</span>
                 </button>
               </div>
             )}
@@ -1246,11 +1403,18 @@ export default function Home() {
 
           {/* Show a centered empty state until a routine is generated; results are always a table. */}
           {generatedExams.length === 0 ? (
-            <div className="relative flex min-h-[280px] w-full items-center justify-center overflow-hidden rounded-2xl border border-teal-500/30 bg-[#0b171f]/80 p-6 shadow-[0_16px_40px_rgba(0,0,0,0.45)]">
-              <div className="pointer-events-none absolute -right-20 -top-28 h-64 w-64 rounded-full bg-teal-400/10 blur-3xl" />
+            <div className="empty-results-panel relative flex min-h-[300px] w-full items-center justify-center overflow-hidden rounded-2xl border border-teal-500/30 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.45)] sm:p-6">
+              <div aria-hidden="true" className="empty-results-preview">
+                <div className="empty-preview-title"><span>EXAM ROUTINE</span><span>DATE · COURSE · TIME</span></div>
+                <div className="empty-preview-row"><i /><i /><i /></div>
+                <div className="empty-preview-row"><i /><i /><i /></div>
+                <div className="empty-preview-row"><i /><i /><i /></div>
+                <div className="empty-preview-row"><i /><i /><i /></div>
+              </div>
+              <div aria-hidden="true" className="empty-results-scrim" />
               <div
                 role="status"
-                className="relative z-10 flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border border-teal-300/25 bg-[#0b171fe8] px-7 py-8 text-center shadow-[0_16px_50px_rgba(0,0,0,0.4)] sm:px-10"
+                className="empty-results-card relative z-10 flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border border-teal-300/25 px-5 py-6 text-center shadow-[0_16px_50px_rgba(0,0,0,0.4)] sm:px-10 sm:py-8"
               >
                 <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teal-300/25 bg-teal-300/10 text-teal-200">
                   <FileText className="h-6 w-6" aria-hidden="true" />
@@ -1286,7 +1450,7 @@ export default function Home() {
                       className="hover:bg-teal-500/10 transition-colors"
                     >
                       <td className="py-3.5 px-4 font-mono-code text-white whitespace-nowrap">
-                        {formatDate(exam.date)}
+                        {formatExamDate(exam)}
                       </td>
                       <td className="py-3.5 px-4 text-[#94A3B8] whitespace-nowrap">
                         {getDayName(exam.date)}
@@ -1313,10 +1477,10 @@ export default function Home() {
               <div className="print-footer">ExamMate</div>
             </>
           )}
-        </section>
+        </LazySection>
 
         {/* FAQ SECTION */}
-        <section id="faq" className="order-6 w-full pt-8 flex flex-col gap-5">
+        <LazySection id="faq" className="order-6 w-full pt-8 flex flex-col gap-5" minHeight="360px">
           {/* Headline */}
           <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
             <div>
@@ -1349,36 +1513,31 @@ export default function Home() {
               </details>
             ))}
           </div>
-        </section>
+        </LazySection>
 
         {/* FOOTER */}
-        <footer className="order-7 w-full pt-12 flex flex-col gap-8">
-          {/* Neon Light Divider Pedestal */}
-          <div className="relative w-full flex items-center justify-center">
-            <div className="w-48 h-1 rounded-full bg-gradient-to-r from-transparent via-[#5EEAD4] to-transparent shadow-[0_0_15px_#5EEAD4]" />
-          </div>
-
+        <LazySection as="footer" className="order-7 w-full pt-4 flex flex-col gap-4" minHeight="150px">
           {/* Main Footer Row */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 border-b border-teal-500/20 pb-8">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-teal-500/20 pb-4 text-center sm:text-left">
             {/* Left: ExamMate logo (using icon.svg) and short description */}
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2.5">
                 <img
                   src="/icon.svg"
                   alt="ExamMate Logo"
-                  className="w-6 h-6 rounded-md shadow-sm"
+                  className="h-6 w-6"
                 />
                 <span className="font-tech text-lg font-bold text-white tracking-wider">
                   Exam<span className="text-neon-mint">Mate</span>
                 </span>
               </div>
-              <p className="text-xs text-[#94A3B8]">
+              <p className="text-[11px] text-[#94A3B8]">
                 Clean exam planning for students who need a calmer routine.
               </p>
             </div>
 
             {/* Right: Links for "Privacy Policy" and "Terms and Conditions" */}
-            <div className="flex items-center gap-6 text-xs text-[#94A3B8]">
+            <div className="flex items-center gap-5 text-xs text-[#94A3B8]">
               <button
                 type="button"
                 onClick={() => setActiveModal("privacy")}
@@ -1396,18 +1555,12 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Bottom: Copyright text */}
-          <div className="flex items-center justify-between text-[11px] font-mono-code text-[#64748B]">
-            <span>
-              © {new Date().getFullYear()} Exam
-              <span className="text-neon-mint">Mate</span>. All rights reserved.
-            </span>
-            <span className="tracking-widest">///</span>
-            <span>
-              Exam<span className="text-neon-mint">Mate</span>
-            </span>
+          {/* Centered credit line */}
+          <div className="pb-1 text-center text-[11px] text-[#64748B]">
+            © {new Date().getFullYear()} ExamMate <span className="px-1.5 text-teal-500/60">·</span>
+            Made by <span className="font-medium text-[#94A3B8]">codewarrior-ahnaf</span>
           </div>
-        </footer>
+        </LazySection>
       </div>
 
       <CustomScrollbar />
@@ -1428,10 +1581,10 @@ export default function Home() {
             <div
               role="alert"
               aria-live="assertive"
-              className="flex items-start gap-3 rounded-xl border border-rose-300/35 bg-[#271416]/95 px-4 py-3 text-sm text-rose-100 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+              className="flex min-w-0 items-start gap-3 rounded-xl border border-rose-300/35 bg-[#271416]/95 px-4 py-3 text-sm text-rose-100 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl"
             >
               <Info className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />
-              <span>{error}</span>
+              <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{error}</span>
             </div>
           )}
           {savedNotice && (
@@ -1469,7 +1622,7 @@ export default function Home() {
                     saved data at any time using the “Clear my data” action.
                   </p>
                   <p>
-                    Google sign-in is optional. ExamMate does not currently sync events to Google Calendar.
+                    Google sign-in is optional. If you connect Google and generate a schedule, ExamMate adds its exams to your primary Google Calendar with 24-hour popup reminders. You can revoke Calendar access from your Google Account settings.
                   </p>
                 </div>
               ) : (
@@ -1484,7 +1637,7 @@ export default function Home() {
                     browser storage for convenience.
                   </p>
                   <p>
-                    Google Calendar event syncing is not currently available. Your generated routine
+                    Connected schedules are added to your primary Google Calendar. Each event includes the course code and exam time, with a Google Calendar popup reminder 24 hours beforehand. Your generated routine
                     is intended as a personal planning aid and should be checked against official notices.
                   </p>
                 </div>

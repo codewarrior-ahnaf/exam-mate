@@ -3,7 +3,13 @@ export function formatDate(isoDate: string): string {
   const match = isoDate.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return isoDate;
   const [, year, month, day] = match;
-  return `${day}/${month}/${year}`;
+  const date = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(date);
 }
 
 export function formatTime(value: string): string {
@@ -36,6 +42,11 @@ export function toIsoDate(value: string): string {
     return buildIsoDate(year, month, day);
   }
 
+  const yearFirstMatch = trimmed.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (yearFirstMatch) {
+    return buildIsoDate(Number(yearFirstMatch[1]), Number(yearFirstMatch[2]), Number(yearFirstMatch[3]));
+  }
+
   const patterns = [
     /^\d{1,2}[/-]\d{1,2}[/-]\d{4}$/,
     /^\d{1,2}[/-]\d{1,2}[/-]\d{2}$/,
@@ -52,10 +63,15 @@ export function toIsoDate(value: string): string {
 
   const match = trimmed.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
   if (match) {
-    const day = Number(match[1]);
-    const month = Number(match[2]);
+    const first = Number(match[1]);
+    const second = Number(match[2]);
     const year = Number(match[3]);
     const fullYear = year < 100 ? 2000 + year : year;
+    // Support both common slash/dash orders when one component makes the
+    // intended order clear. Ambiguous values default to day/month for SEU use.
+    const monthFirst = first > 12 && second <= 12 ? false : second > 12 && first <= 12;
+    const day = monthFirst ? second : first;
+    const month = monthFirst ? first : second;
     return buildIsoDate(fullYear, month, day);
   }
 

@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import "server-only";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { betterAuth } from "better-auth";
@@ -53,9 +54,34 @@ function getLocalSecret() {
 
 const isProduction = process.env.NODE_ENV === "production";
 const localSecret = isProduction ? "" : getLocalSecret();
-const secret = process.env.BETTER_AUTH_SECRET
-  || localSecret
-  || "build-only-secret-that-must-not-be-used-at-runtime";
+const configuredBaseURL = process.env.BETTER_AUTH_URL ?? process.env.FRONTEND_ORIGIN;
+const baseURL = configuredBaseURL ?? (isProduction ? "" : "http://localhost:3000");
+const productionSecret = process.env.BETTER_AUTH_SECRET ?? "";
+if (isProduction) {
+  if (productionSecret.length < 32) {
+    throw new Error("Set BETTER_AUTH_SECRET to at least 32 characters in the Vercel environment.");
+  }
+  if (!configuredBaseURL) {
+    throw new Error("Set BETTER_AUTH_URL to the deployed HTTPS origin in the Vercel environment.");
+  }
+  let authOrigin: URL;
+  try {
+    authOrigin = new URL(baseURL);
+  } catch {
+    throw new Error("BETTER_AUTH_URL must be a valid absolute URL.");
+  }
+  const localBuildOrigin =
+    !process.env.VERCEL &&
+    authOrigin.protocol === "http:" &&
+    ["localhost", "127.0.0.1"].includes(authOrigin.hostname);
+  if (authOrigin.protocol !== "https:" && !localBuildOrigin) {
+    throw new Error("BETTER_AUTH_URL must use HTTPS in production.");
+  }
+  if (!googleClientId || !googleClientSecret) {
+    throw new Error("Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the Vercel environment.");
+  }
+}
+const secret = process.env.BETTER_AUTH_SECRET || localSecret;
 const databaseUri = process.env.DB_URI;
 if (!databaseUri) {
   throw new Error("Set DB_URI to your MongoDB connection string.");
@@ -71,24 +97,46 @@ if (process.env.NODE_ENV !== "production") {
 
 export const auth = betterAuth({
   appName: "SEU Exam Routine",
-  baseURL: process.env.BETTER_AUTH_URL
-    ?? process.env.FRONTEND_ORIGIN
-    ?? "http://localhost:3000",
+  baseURL,
   secret,
-  encryptOAuthTokens: true,
-  trustedOrigins: [
-    process.env.BETTER_AUTH_URL,
-    process.env.FRONTEND_ORIGIN,
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-  ].filter((origin): origin is string => Boolean(origin)),
+  account: {
+    encryptOAuthTokens: true,
+    updateAccountOnSignIn: true,
+    storeAccountCookie: false,
+    storeStateStrategy: "database",
+  },
+  advanced: {
+    useSecureCookies: isProduction,
+    defaultCookieAttributes: {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: "lax",
+    },
+  },
+  trustedOrigins: isProduction
+    ? [new URL(baseURL).origin]
+    : [
+        process.env.BETTER_AUTH_URL,
+        process.env.FRONTEND_ORIGIN,
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+      ].filter((origin): origin is string => Boolean(origin)),
+  rateLimit: {
+    enabled: isProduction,
+    storage: "database",
+    window: 60,
+    max: 100,
+    customRules: {
+      "/sign-in/social": { window: 60, max: 10 },
+    },
+  },
   database: mongodbAdapter(mongoClient.db()),
   socialProviders: {
     google: {
       clientId: googleClientId,
       clientSecret: googleClientSecret,
       accessType: "offline",
-      scope: ["openid", "email", "profile", "https://www.googleapis.com/auth/calendar"],
+      scope: ["openid", "email", "profile", "https://www.googleapis.com/auth/calendar.events"],
     },
   },
 });
