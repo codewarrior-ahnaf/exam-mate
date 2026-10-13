@@ -395,8 +395,6 @@ export default function Home() {
   const [calendarSyncing, setCalendarSyncing] = useState(false);
   const lastCalendarSyncRef = useRef("");
   const [isDragOver, setIsDragOver] = useState(false);
-  const [activeModal, setActiveModal] = useState<"privacy" | "terms" | null>(null);
-
   const selectedCourseCodes = useMemo(() => {
     return Array.from(
       new Set(
@@ -1544,20 +1542,12 @@ export default function Home() {
 
             {/* Right: Links for "Privacy Policy" and "Terms and Conditions" */}
             <div className="flex items-center gap-5 text-xs text-[#94A3B8]">
-              <button
-                type="button"
-                onClick={() => setActiveModal("privacy")}
-                className="hover:text-teal-300 transition-colors"
-              >
+              <a href="/privacy" className="hover:text-teal-300 transition-colors">
                 Privacy Policy
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveModal("terms")}
-                className="hover:text-teal-300 transition-colors"
-              >
+              </a>
+              <a href="/terms" className="hover:text-teal-300 transition-colors">
                 Terms
-              </button>
+              </a>
             </div>
           </div>
 
@@ -1606,61 +1596,6 @@ export default function Home() {
         </div>
       )}
 
-      {/* POLICY MODAL */}
-      {activeModal && (
-        <div className="policy-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="policy-modal w-full max-w-lg rounded-2xl border border-teal-200/30 p-6 flex flex-col gap-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-teal-500/20 pb-3">
-              <h3 className="text-base font-bold text-white font-tech">
-                {activeModal === "privacy" ? "Privacy Policy" : "Terms and Conditions"}
-              </h3>
-            </div>
-            <div className="text-xs text-[#94A3B8] leading-relaxed max-h-[60vh] overflow-y-auto pr-1">
-              {activeModal === "privacy" ? (
-                <div className="space-y-3">
-                  <p>
-                    ExamMate runs primarily in your browser.                     Uploaded routine files are processed locally on your device. Your generated exam
-                    data stays in your browser for up to 15 days unless you clear it sooner.
-                  </p>
-                  <p>
-                    The app stores only the generated exam data and selected course codes for up to 15
-                    days in your browser storage. The routine file itself is never retained. You can clear your
-                    saved data at any time using the “Clear my data” action.
-                  </p>
-                  <p>
-                    Google sign-in is optional. If you connect Google and generate a schedule, ExamMate adds its exams to your primary Google Calendar with 24-hour popup reminders. You can revoke Calendar access from your Google Account settings.
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <p>
-                    ExamMate is provided for personal academic planning. The app helps you organize and
-                    export your exam schedule, but it does not replace your official routine or
-                    university notices.
-                  </p>
-                  <p>
-                    We do not store exam files after processing and only keep the generated routine in
-                    browser storage for convenience.
-                  </p>
-                  <p>
-                    Connected schedules are added to your primary Google Calendar. Each event includes the course code and exam time, with a Google Calendar popup reminder 24 hours beforehand. Your generated routine
-                    is intended as a personal planning aid and should be checked against official notices.
-                  </p>
-                </div>
-              )}
-            </div>
-            <div className="flex justify-end pt-2 border-t border-teal-500/20">
-              <button
-                type="button"
-                onClick={() => setActiveModal(null)}
-                className="btn-neon-primary px-4 py-1.5 rounded-full text-xs"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
