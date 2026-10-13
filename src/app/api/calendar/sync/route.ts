@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { isTrustedMutationRequest } from "@/lib/api-security";
+import { isTrustedMutationRequest, getClientIp, checkRateLimit } from "@/lib/api-security";
 
 const MAX_REQUEST_BYTES = 512 * 1024;
 
@@ -26,6 +26,15 @@ function eventId(id: string) {
 export async function POST(request: Request) {
   if (!isTrustedMutationRequest(request)) {
     return NextResponse.json({ error: "Request origin is not allowed." }, { status: 403 });
+  }
+
+  const clientIp = getClientIp(request);
+  const rateLimit = checkRateLimit(`calendar_sync:${clientIp}`, 25, 60 * 1000);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many calendar sync requests. Please wait a moment before trying again." },
+      { status: 429 }
+    );
   }
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
     return NextResponse.json({ error: "Send the schedule as JSON." }, { status: 415 });

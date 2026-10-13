@@ -9,20 +9,30 @@ export default function TermsPage() {
   return (
     <PolicyPage title="Terms and Conditions">
       <p>
-        ExamMate is provided for personal academic planning. The app helps you
-        organize and export your exam schedule, but it does not replace your
-        official routine or university notices.
+        ExamMate is provided for personal academic planning and convenience. The
+        app assists students in organizing, filtering, and exporting exam
+        schedules from university routines, but it does not replace official
+        university notices or academic regulations. Always verify your final
+        schedule against official Southeast University publications.
       </p>
       <p>
-        We do not store exam files after processing and only keep the generated
-        routine in browser storage for convenience.
+        <strong>File Uploads & Google Drive Links:</strong> When uploading an
+        Excel routine file or providing a Google Drive share link, you confirm that
+        you have the right to access and view the document. ExamMate parses files
+        in-memory and does not retain uploaded spreadsheets or Drive files on
+        server storage.
       </p>
       <p>
-        Connected schedules are added to your primary Google Calendar. Each
-        event includes the course code and exam time, with a Google Calendar
-        popup reminder 24 hours beforehand. Your generated routine is intended
-        as a personal planning aid and should be checked against official
-        notices.
+        <strong>Local Storage:</strong> Your generated examination schedule is
+        retained on your device’s local browser storage for up to 15 days for
+        your planning convenience. You may clear this data at any time.
+      </p>
+      <p>
+        <strong>Google Calendar Sync:</strong> Synchronized exam events and
+        24-hour reminders are added to your primary Google Calendar upon request.
+        ExamMate is not responsible for calendar notification deliveries or
+        schedule discrepancies resulting from routine revisions published by the
+        university.
       </p>
     </PolicyPage>
   );

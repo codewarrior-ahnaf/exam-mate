@@ -8,10 +8,12 @@ import {
   ChevronDown,
   Clock,
   Clock3,
+  AlertTriangle,
   Download,
   FileSpreadsheet,
   FileText,
   Info,
+  Link2,
   LoaderCircle,
   Printer,
   Send,
@@ -383,8 +385,21 @@ export default function Home() {
   const [pageReady, setPageReady] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [fileName, setFileName] = useState("");
-  const [courseInput, setCourseInput] = useState("");
+  const [courseInput, setCourseInput] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.sessionStorage.getItem("examMate:pendingCourses") || "";
+    }
+    return "";
+  });
   const [courseDraft, setCourseDraft] = useState("");
+  const [driveLink, setDriveLink] = useState(() => {
+    if (typeof window !== "undefined") {
+      return window.sessionStorage.getItem("examMate:pendingDriveLink") || "";
+    }
+    return "";
+  });
+  const [restrictedDriveFileId, setRestrictedDriveFileId] = useState("");
+  const [requiresGoogleAuth, setRequiresGoogleAuth] = useState(false);
   const [allExams, setAllExams] = useState<ParsedExam[]>([]);
   const [generatedExams, setGeneratedExams] = useState<ParsedExam[]>([]);
   const [message, setMessage] = useState("");
@@ -395,6 +410,8 @@ export default function Home() {
   const [pngExporting, setPngExporting] = useState(false);
   const lastCalendarSyncRef = useRef("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const isLinkActive = Boolean(driveLink.trim());
+  const isFileUploaded = Boolean(fileName && fileName !== "Google Drive link");
   const selectedCourseCodes = useMemo(() => {
     return Array.from(
       new Set(
@@ -462,6 +479,28 @@ export default function Home() {
     return () => window.clearTimeout(timer);
   }, [savedNotice]);
 
+  // Auto-resume routine generation if redirected back from Google sign-in
+  useEffect(() => {
+    if (typeof window === "undefined" || !authSession?.user) return;
+    try {
+      const pendingLink = window.sessionStorage.getItem("examMate:pendingDriveLink");
+      const pendingCourses = window.sessionStorage.getItem("examMate:pendingCourses");
+      if (pendingLink) {
+        window.sessionStorage.removeItem("examMate:pendingDriveLink");
+        window.sessionStorage.removeItem("examMate:pendingCourses");
+        setDriveLink(pendingLink);
+        if (pendingCourses) {
+          setCourseInput(pendingCourses);
+        }
+        window.setTimeout(() => {
+          void handleGenerate(pendingLink, pendingCourses || undefined);
+        }, 350);
+      }
+    } catch {
+      // ignore storage errors
+    }
+  }, [authSession?.user]);
+
   async function syncCalendar(exams = generatedExams) {
     if (!authSession || !exams.length) return;
     setCalendarSyncing(true);
@@ -522,6 +561,7 @@ export default function Home() {
     setError("");
     setMessage("");
     setFileName(file.name);
+    setDriveLink("");
 
     try {
       const parsed = await parseRoutineFile(file);
@@ -545,6 +585,39 @@ export default function Home() {
     }
   }
 
+  async function loadExamsFromDrive(link: string): Promise<ParsedExam[]> {
+    const response = await fetch("/api/drive/fetch", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: link }),
+    });
+    if (!response.ok) {
+      const details = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        fileId?: string;
+        requiresGoogleAuth?: boolean;
+      };
+      if (details.fileId) {
+        setRestrictedDriveFileId(details.fileId);
+      }
+      if (details.requiresGoogleAuth) {
+        setRequiresGoogleAuth(true);
+      }
+      throw new Error(details.error || "Could not read this Google Drive link.");
+    }
+    setRestrictedDriveFileId("");
+    setRequiresGoogleAuth(false);
+    const blob = await response.blob();
+    const name = response.headers.get("X-File-Name") || "drive-routine.xlsx";
+    const parsed = await parseRoutineFile(new File([blob], name));
+    if (!parsed.length) {
+      throw new Error(
+        "No valid exams found in the linked file. Verify it includes Course Code, Date, and Time columns."
+      );
+    }
+    return sortExams(parsed);
+  }
+
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     const nextFile = event.target.files?.[0];
     if (!nextFile) return;
@@ -558,6 +631,30 @@ export default function Home() {
     if (file) {
       void handleFileUpload(file);
     }
+  }
+
+  function clearUploadedFile() {
+    setFileName("");
+    setRestrictedDriveFileId("");
+    setRequiresGoogleAuth(false);
+    setAllExams([]);
+    if (inputRef.current) inputRef.current.value = "";
+    setMessage("");
+  }
+
+  function clearDriveLink() {
+    setDriveLink("");
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem("examMate:pendingDriveLink");
+      window.localStorage.removeItem("examMate:savedDriveLink");
+    }
+    setRestrictedDriveFileId("");
+    setRequiresGoogleAuth(false);
+    if (fileName === "Google Drive link") {
+      setFileName("");
+      setAllExams([]);
+    }
+    setMessage("");
   }
 
   function addCourseCodes(value: string) {
@@ -578,26 +675,48 @@ export default function Home() {
     });
 
     if (validCodes.length) {
-      setCourseInput(
-        Array.from(new Set([...selectedCourseCodes, ...validCodes])).join(", ")
-      );
+      const nextCodes = Array.from(new Set([...selectedCourseCodes, ...validCodes])).join(", ");
+      setCourseInput(nextCodes);
     }
     setCourseDraft(remainingDraft);
   }
 
   function removeCourseCode(codeToRemove: string) {
-    setCourseInput(
-      selectedCourseCodes.filter((code) => code !== codeToRemove).join(", ")
-    );
+    const nextCodes = selectedCourseCodes.filter((code) => code !== codeToRemove).join(", ");
+    setCourseInput(nextCodes);
   }
 
-  function handleGenerate() {
-    if (!allExams.length) {
-      setError("Upload an exam routine before generating your table.");
+  async function handleGenerate(overrideLink?: string, overrideCourses?: string) {
+    const rawLink = typeof overrideLink === "string" ? overrideLink : driveLink;
+    const link = rawLink.trim();
+    if (!link && !allExams.length) {
+      setError("Upload an exam routine file or paste a Google Drive link before generating.");
       return;
     }
 
-    if (!selectedCourseCodes.length) {
+    const effectiveCourseSource = typeof overrideCourses === "string" ? overrideCourses : courseInput;
+    const pendingDraft = courseDraft.trim().toUpperCase();
+    let effectiveSelectedCodes = Array.from(
+      new Set(
+        effectiveCourseSource
+          .split(/[\n,]+/)
+          .map((v) => v.trim().toUpperCase())
+          .filter((v) => Boolean(v) && !hasIncompleteTrailingDot(v))
+          .map((v) => normalizeCourseCode(v))
+      )
+    );
+
+    if (pendingDraft && !hasIncompleteTrailingDot(pendingDraft)) {
+      const normalized = normalizeCourseCode(pendingDraft);
+      if (!effectiveSelectedCodes.includes(normalized)) {
+        effectiveSelectedCodes = [...effectiveSelectedCodes, normalized];
+        const nextText = effectiveSelectedCodes.join(", ");
+        setCourseInput(nextText);
+        setCourseDraft("");
+      }
+    }
+
+    if (!effectiveSelectedCodes.length) {
       setError("Add at least one course code to build your personal exam table.");
       return;
     }
@@ -606,10 +725,50 @@ export default function Home() {
     setError("");
     setMessage("");
 
+    // A pasted Drive link takes priority: scan it in the background, then build the table.
+    let sourceExams = allExams;
+    if (link) {
+      try {
+        sourceExams = await loadExamsFromDrive(link);
+        setAllExams(sourceExams);
+        setFileName("Google Drive link");
+      } catch (driveError) {
+        if (!authSession?.user) {
+          try {
+            window.sessionStorage.setItem("examMate:pendingDriveLink", link);
+            window.sessionStorage.setItem(
+              "examMate:pendingCourses",
+              effectiveSelectedCodes.join(", ")
+            );
+            setGoogleLoading(true);
+            await startGoogleSignIn();
+            return;
+          } catch (signInErr) {
+            setError(
+              signInErr instanceof Error
+                ? signInErr.message
+                : "Could not start Google connection."
+            );
+            setGenerating(false);
+            setGoogleLoading(false);
+            return;
+          }
+        }
+
+        setError(
+          driveError instanceof Error
+            ? driveError.message
+            : "Could not read this Google Drive link."
+        );
+        setGenerating(false);
+        return;
+      }
+    }
+
     // Strictly match selected course codes (matching exact section when specified e.g. CSE181.5)
     const matchedExams: ParsedExam[] = [];
-    for (const exam of allExams) {
-      const matchedUserCode = selectedCourseCodes.find((code) =>
+    for (const exam of sourceExams) {
+      const matchedUserCode = effectiveSelectedCodes.find((code) =>
         coursesMatch(code, exam.courseCode)
       );
       if (matchedUserCode) {
@@ -639,8 +798,8 @@ export default function Home() {
     }
 
     const matches = sortExams(uniqueMatches);
-    const unmatched = selectedCourseCodes.filter(
-      (code) => !allExams.some((exam) => coursesMatch(code, exam.courseCode))
+    const unmatched = effectiveSelectedCodes.filter(
+      (code) => !sourceExams.some((exam) => coursesMatch(code, exam.courseCode))
     );
 
     setGeneratedExams(matches);
@@ -669,6 +828,7 @@ export default function Home() {
   function handleLoadSample() {
     setAllExams(SAMPLE_EXAMS);
     setFileName("Sample_Exam_Routine_Fall2026.xlsx");
+    setDriveLink("");
     setCourseInput("CSE101, CSE181.5, MAT101");
     setMessage("Sample routine loaded. Click Generate to build your table.");
   }
@@ -679,6 +839,7 @@ export default function Home() {
     setCourseInput("");
     setCourseDraft("");
     setFileName("");
+    setDriveLink("");
     setAllExams([]);
     if (inputRef.current) inputRef.current.value = "";
     try {
@@ -1041,22 +1202,27 @@ export default function Home() {
     {
       question: "Can I use ExamMate without an account?",
       answer:
-        "Yes, absolutely. You can upload a routine, enter your course codes, and synthesize a personal examination schedule immediately without creating an account or providing any credentials.",
+        "Yes, absolutely. You can upload an Excel routine file (.xlsx, .xls, .csv), enter your course codes, and synthesize your exam table immediately without signing in or providing any credentials.",
     },
     {
-      question: "Which file types can I upload?",
+      question: "How does the Google Drive link import work?",
       answer:
-        "Excel spreadsheet files (.xlsx, .xls, and .csv) are fully supported. The parser automatically scans and detects relevant column headers (Course Code, Date, Time, Starting/Ending Time, Room, Faculty) and synthesizes your personalized schedule.",
+        "Simply paste your shared Google Drive or Google Sheets link in Option 2. If the link is restricted to Southeast University (@seu.edu.bd) accounts, clicking Generate will prompt a one-click Google Sign-In. ExamMate reads the spreadsheet securely in the background via read-only Google Drive API and builds your routine table automatically.",
     },
     {
-      question: "What happens to my data?",
+      question: "Which file formats can I upload?",
       answer:
-        "Your routine file is processed in your browser, and your generated schedule is saved on your device for up to 15 days. Google sign-in is optional.",
+        "Excel spreadsheet files (.xlsx, .xls, .xlsm, and .csv) as well as Google Drive share links are fully supported. The parser scans and detects relevant column headers (Course Code, Date, Time, Room, and Faculty) automatically.",
+    },
+    {
+      question: "What happens to my data and privacy?",
+      answer:
+        "Your routine file is processed in memory and never stored on our servers. Your synthesized routine table is saved locally on your device for up to 15 days so you do not have to regenerate it on returning visits. Draft upload fields reset cleanly when you close your browser tab.",
     },
     {
       question: "Can I sync my schedule to Google Calendar?",
       answer:
-        "Yes. Connect Google and generate your schedule to add each exam to your primary Google Calendar with its course code, date, and time. ExamMate sets a Google Calendar popup reminder 24 hours before each exam. Click the connected Google icon in the navbar to sync again after updating your schedule.",
+        "Yes. Connect your Google account to automatically add your exams to your primary Google Calendar with course codes, dates, and times, complete with 24-hour advance reminders before every exam.",
     },
   ];
 
@@ -1248,43 +1414,139 @@ export default function Home() {
 
               {/* Upload Zone & Course Codes section */}
               <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-                {/* Drag-and-drop file upload zone with dashed glowing border */}
-                <label
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setIsDragOver(true);
-                  }}
-                  onDragLeave={() => setIsDragOver(false)}
-                  onDrop={handleDrop}
-                  className={`sm:col-span-12 relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-dashed cursor-pointer text-center ${
-                    isDragOver
-                      ? "border-emerald-400 bg-emerald-950/40"
-                      : "border-teal-400/50 bg-teal-950/25"
-                  }`}
-                >
-                  <input
-                    type="file"
-                    accept=".xlsx,.xls,.xlsm,.csv"
-                    onChange={handleFileChange}
-                    ref={inputRef}
-                    className="sr-only"
-                  />
-                  <div className="w-10 h-10 rounded-full bg-teal-500/15 border border-teal-400/40 flex items-center justify-center text-[#5EEAD4] shadow-[0_0_15px_rgba(94,234,212,0.25)]">
-                    {uploading ? (
-                      <LoaderCircle className="w-5 h-5 animate-spin" />
+                {/* OPTION 1: Drag-and-drop file upload zone */}
+                <div className="sm:col-span-12 relative flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold">
+                      OPTION 1: UPLOAD EXCEL FILE
+                    </span>
+                  </div>
+
+                  <label
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (!isLinkActive && !uploading) setIsDragOver(true);
+                    }}
+                    onDragLeave={() => setIsDragOver(false)}
+                    onDrop={(e) => {
+                      if (isLinkActive || uploading) return;
+                      handleDrop(e);
+                    }}
+                    className={`relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-dashed text-center transition-all ${
+                      isLinkActive
+                        ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
+                        : isDragOver
+                        ? "border-emerald-400 bg-emerald-950/40 cursor-pointer"
+                        : "border-teal-400/50 bg-teal-950/25 cursor-pointer hover:border-teal-300"
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls,.xlsm,.csv"
+                      onChange={handleFileChange}
+                      ref={inputRef}
+                      disabled={isLinkActive || uploading}
+                      className="sr-only"
+                    />
+                    <div className="w-10 h-10 rounded-full bg-teal-500/15 border border-teal-400/40 flex items-center justify-center text-[#5EEAD4] shadow-[0_0_15px_rgba(94,234,212,0.25)]">
+                      {uploading && !isLinkActive ? (
+                        <LoaderCircle className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <Upload className="w-5 h-5" />
+                      )}
+                    </div>
+                    <span className="text-xs font-semibold text-white max-w-[280px] truncate">
+                      {isLinkActive
+                        ? "Upload disabled (Drive link is active below)"
+                        : isFileUploaded
+                        ? fileName
+                        : "Choose an exam routine file (Excel .xlsx / .xls / .csv)"}
+                    </span>
+                    {isFileUploaded && !isLinkActive ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          clearUploadedFile();
+                        }}
+                        className="mt-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-rose-500/40 bg-rose-500/15 text-xs font-mono-code text-rose-300 hover:bg-rose-500/25 hover:text-rose-100 transition shadow-sm pointer-events-auto"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" /> Remove file
+                      </button>
                     ) : (
-                      <Upload className="w-5 h-5" />
+                      <span className="mt-1 flex items-center gap-2" aria-hidden="true">
+                        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-200">
+                          <FileSpreadsheet className="h-3 w-3" /> Excel (.xlsx / .xls / .csv)
+                        </span>
+                      </span>
+                    )}
+                  </label>
+                  {isLinkActive && (
+                    <p className="text-[10px] text-amber-300/80 font-mono-code">
+                      * Upload is disabled because a Drive link is entered. Clear the link below to upload a file instead.
+                    </p>
+                  )}
+                </div>
+
+                {/* OPTION 2: Google Drive share-link import */}
+                <div className="sm:col-span-12 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label
+                      htmlFor="drive-link"
+                      className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
+                    >
+                      OPTION 2: PASTE GOOGLE DRIVE LINK
+                    </label>
+                  </div>
+                  <div
+                    className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 transition-all ${
+                      isFileUploaded
+                        ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40"
+                        : "border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
+                    }`}
+                  >
+                    <Link2 className="h-4 w-4 shrink-0 text-teal-300" aria-hidden="true" />
+                    <input
+                      id="drive-link"
+                      type="url"
+                      value={driveLink}
+                      disabled={isFileUploaded}
+                      onChange={(event) => setDriveLink(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          void handleGenerate();
+                        }
+                      }}
+                      placeholder={
+                        isFileUploaded
+                          ? `Link disabled (${fileName} uploaded) — remove file above to use link`
+                          : "https://drive.google.com/file/d/…/view"
+                      }
+                      className="w-full border-0 bg-transparent py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                    />
+                    {isLinkActive && !isFileUploaded && (
+                      <button
+                        type="button"
+                        onClick={clearDriveLink}
+                        aria-label="Clear drive link"
+                        className="rounded-full p-1 text-slate-400 hover:text-white transition"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
                     )}
                   </div>
-                  <span className="text-xs font-semibold text-white max-w-[240px] truncate">
-                    {fileName || "Choose an exam routine file (Excel .xlsx / .xls)"}
-                  </span>
-                  <span className="mt-1 flex items-center gap-2" aria-hidden="true">
-                    <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-200">
-                      <FileSpreadsheet className="h-3 w-3" /> Excel (.xlsx / .xls / .csv)
-                    </span>
-                  </span>
-                </label>
+                  {isFileUploaded ? (
+                    <p className="text-[10px] text-amber-300/80 font-mono-code">
+                      * Drive link is disabled because an Excel file is already uploaded ({fileName}). Click &quot;Remove file&quot; above to use a link instead.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-[#94A3B8]">
+                      Paste link, enter course codes, then press Generate.
+                    </p>
+                  )}
+                </div>
 
                 <div className="sm:col-span-12 flex justify-center text-xs text-slate-400">
                   Need a quick preview?{" "}
@@ -1379,16 +1641,16 @@ export default function Home() {
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={handleGenerate}
+                    onClick={() => void handleGenerate()}
                     disabled={generating || uploading}
-                    className="btn-neon-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider"
+                    className="btn-neon-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(94,234,212,0.35)]"
                   >
                     {generating ? (
                       <LoaderCircle className="w-4 h-4 animate-spin text-[#041B16]" />
                     ) : (
                       <Sparkles className="w-4 h-4 text-[#041B16]" />
                     )}
-                    <span>Generate</span>
+                    <span>{generating ? "Generating…" : "Generate"}</span>
                   </button>
 
                   <button
@@ -1583,10 +1845,10 @@ export default function Home() {
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200">
                   1
                 </div>
-                <h3 className="font-semibold text-base text-white">Upload routine</h3>
+                <h3 className="font-semibold text-base text-white">Upload or Paste Link</h3>
               </div>
               <p className="text-sm text-slate-300 leading-relaxed">
-                Choose your university routine Excel spreadsheet (.xlsx or .xls format).
+                Choose between uploading an Excel file (.xlsx / .xls / .csv) or pasting a Google Drive link.
               </p>
             </div>
 

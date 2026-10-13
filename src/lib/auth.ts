@@ -136,7 +136,13 @@ export const auth = betterAuth({
       clientId: googleClientId,
       clientSecret: googleClientSecret,
       accessType: "offline",
-      scope: ["openid", "email", "profile", "https://www.googleapis.com/auth/calendar.events"],
+      scope: [
+        "openid",
+        "email",
+        "profile",
+        "https://www.googleapis.com/auth/calendar.events",
+        "https://www.googleapis.com/auth/drive.readonly",
+      ],
     },
   },
 });
