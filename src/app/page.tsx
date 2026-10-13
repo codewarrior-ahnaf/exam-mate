@@ -136,28 +136,9 @@ function formatExamDate(exam: ParsedExam): string {
 }
 
 function formatFaculty(faculty: string): string {
-  if (/^faculty not listed$/i.test(faculty.trim())) return "—";
-  const name = faculty
-    .replace(/\b(?:room|venue|hall|classroom)\s*(?:no\.?|number)?\s*[\w-]+/gi, "")
-    .replace(/\([^)]*\)/g, " ")
-    .replace(/[()[\],]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const titles = new Set(["dr", "prof", "professor", "mr", "mrs", "ms", "miss"]);
-  const nameParts = name
-    .split(/\s+/)
-    .filter(Boolean)
-    .filter((part) => !titles.has(part.replace(/\./g, "").toLowerCase()));
-  const displayName = nameParts.join(" ");
-  const firstName = nameParts[0]?.replace(/[^A-Za-z]/g, "") ?? "";
-  const initials = firstName.length >= 4
-    ? firstName.slice(0, 4).toUpperCase()
-    : nameParts
-        .map((part) => part.replace(/[^A-Za-z]/g, "").charAt(0).toUpperCase())
-        .join("")
-        .slice(0, 4);
-
-  return initials && displayName ? `[${initials}] ${displayName}` : "—";
+  const trimmed = (faculty ?? "").toString().trim();
+  if (!trimmed || /^faculty not listed$/i.test(trimmed)) return "—";
+  return trimmed;
 }
 
 function formatGeneratedDate(date: Date): string {

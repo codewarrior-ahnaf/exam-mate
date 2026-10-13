@@ -132,14 +132,24 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
   ],
   faculty: [
     "faculty",
+    "faculty name",
+    "faculty initial",
+    "faculty initials",
+    "faculty member",
     "teacher",
-    "instructor",
-    "lecturer",
-    "initial",
+    "teacher name",
     "teacher initial",
     "teacher s initial",
     "teachers initial",
+    "instructor",
+    "instructor name",
+    "course teacher",
+    "course instructor",
+    "lecturer",
+    "initial",
+    "initials",
     "invigilator",
+    "invigilator name",
   ],
   section: [
     "section",
@@ -431,9 +441,9 @@ export function normalizeRow(raw: Record<string, unknown>): ParsedExam | null {
 
   const rawFaculty = normalizeText(
     raw.faculty ?? raw["Faculty"] ?? raw["Teacher"] ?? raw["Instructor"] ?? raw["Lecturer"],
-    "Faculty not listed",
+    "",
   );
-  const faculty = rawFaculty.replace(/^\d+\s+/, "").trim() || "Faculty not listed";
+  const faculty = rawFaculty.trim();
   const program = normalizeText(
     raw.program ?? raw["Program"] ?? raw["Department"] ?? raw["Semester"],
     "General",
