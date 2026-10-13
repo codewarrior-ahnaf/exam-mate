@@ -60,6 +60,7 @@ export function toIsoDate(value: string): string {
   // Strip ordinal suffixes: 1st, 2nd, 3rd, 4th, 20th
   clean = clean.replace(/\b(\d+)(?:st|nd|rd|th)\b/gi, "$1");
   clean = clean.replace(/[,]+/g, " ").replace(/\s+/g, " ").trim();
+  clean = clean.replace(/\s*([/.-])\s*/g, "$1");
 
   // Pattern 1: YYYY-MM-DD, YYYY/MM/DD, YYYY.MM.DD
   const yFirst = clean.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$/);

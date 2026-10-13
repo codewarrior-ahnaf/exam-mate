@@ -33,10 +33,20 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
     "course no",
     "course no.",
     "course number",
+    "course num",
     "subject code",
     "sub code",
     "code",
     "course",
+    "course id",
+    "paper code",
+    "course code title",
+    "course code and title",
+    "course code name",
+    "course title code",
+    "course title and code",
+    "course and title",
+    "paper",
   ],
   courseTitle: [
     "course title",
@@ -47,6 +57,8 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
     "title",
     "subject",
     "name of course",
+    "paper name",
+    "paper title",
   ],
   date: [
     "date",
@@ -59,6 +71,13 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
     "date day",
     "date & day",
     "date and day",
+    "exam date day",
+    "exam date and day",
+    "day",
+    "day & date",
+    "date time",
+    "date & time",
+    "date and time",
   ],
   time: [
     "time",
@@ -69,6 +88,15 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
     "session",
     "slot",
     "timing",
+    "timings",
+    "slot time",
+    "exam slot",
+    "exam timing",
+    "hours",
+    "schedule",
+    "date time",
+    "date & time",
+    "date and time",
   ],
   startTime: ["start", "start time", "starting time", "from"],
   endTime: ["end", "end time", "ending time", "to", "until"],
@@ -79,9 +107,22 @@ export const HEADER_ALIASES: Record<HeaderField, string[]> = {
     "lecturer",
     "initial",
     "teacher initial",
+    "teacher s initial",
+    "teachers initial",
     "invigilator",
   ],
-  program: ["program", "department", "dept", "dept.", "semester", "batch", "degree"],
+  program: [
+    "program",
+    "programme",
+    "department",
+    "dept",
+    "dept.",
+    "semester",
+    "batch",
+    "degree",
+    "section",
+    "sec",
+  ],
   room: ["room", "room no", "room no.", "hall", "room number", "venue", "lab"],
 };
 
@@ -119,10 +160,81 @@ export function normalizeHeader(value: string): string {
 }
 
 export function getHeaderField(value: unknown): HeaderField | undefined {
-  const header = normalizeHeader(String(value ?? ""));
-  return (Object.entries(HEADER_ALIASES) as [HeaderField, string[]][]).find(([, aliases]) =>
-    aliases.includes(header),
+  const h = normalizeHeader(String(value ?? ""));
+  if (!h) return undefined;
+
+  // 1. Exact alias match
+  const exact = (Object.entries(HEADER_ALIASES) as [HeaderField, string[]][]).find(([, aliases]) =>
+    aliases.includes(h),
   )?.[0];
+  if (exact) return exact;
+
+  // 2. Substring & prefix heuristics
+  if (
+    h === "course code" ||
+    h.startsWith("course code") ||
+    h.startsWith("course no") ||
+    h.startsWith("course num") ||
+    h === "code" ||
+    h.includes("course id") ||
+    h.includes("paper code") ||
+    h === "sub code" ||
+    h === "subject code"
+  ) {
+    return "courseCode";
+  }
+
+  if (
+    h === "course title" ||
+    h.startsWith("course title") ||
+    h.startsWith("course name") ||
+    h === "title" ||
+    h === "subject" ||
+    h.startsWith("subject name") ||
+    h.startsWith("subject title")
+  ) {
+    return "courseTitle";
+  }
+
+  if (h.includes("date") || h === "day") {
+    return "date";
+  }
+
+  if (
+    h.includes("time") ||
+    h.includes("slot") ||
+    h.includes("timing") ||
+    h.includes("session") ||
+    h.includes("schedule")
+  ) {
+    return "time";
+  }
+
+  if (
+    h.includes("teacher") ||
+    h.includes("faculty") ||
+    h.includes("instructor") ||
+    h.includes("invigilator") ||
+    h === "initial"
+  ) {
+    return "faculty";
+  }
+
+  if (
+    h.includes("dept") ||
+    h.includes("program") ||
+    h.includes("batch") ||
+    h.includes("semester") ||
+    h.includes("section")
+  ) {
+    return "program";
+  }
+
+  if (h.includes("room") || h.includes("hall") || h.includes("venue") || h.includes("lab")) {
+    return "room";
+  }
+
+  return undefined;
 }
 
 export function findHeaderRow(
@@ -140,12 +252,13 @@ export function findHeaderRow(
     });
 
     if (columns.courseCode === undefined) continue;
+
     const hasTime =
       columns.time !== undefined ||
       columns.startTime !== undefined ||
       columns.endTime !== undefined;
 
-    if (requireDate && (columns.date === undefined || !hasTime)) continue;
+    if (requireDate && columns.date === undefined && !hasTime) continue;
 
     const score = Object.keys(columns).length;
     if (!best || score > best.score) best = { index, columns, score };
@@ -263,13 +376,29 @@ export function parseTimeRange(rawValue: string, startValue = "", endValue = "")
     }
   }
 
-  return { start: normalizeTime(cleaned), end: normalizeTime(cleaned) };
+  const single = normalizeTime(cleaned);
+  if (single) {
+    return { start: single, end: addHoursToTimeString(single, 2) };
+  }
+
+  return { start: "", end: "" };
+}
+
+function addHoursToTimeString(timeStr: string, hoursToAdd = 2): string {
+  const [hStr, mStr] = timeStr.split(":");
+  let h = Number(hStr ?? 0) + hoursToAdd;
+  const m = Number(mStr ?? 0);
+  if (h >= 24) h = 23;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
 }
 
 export function normalizeTime(value: string, fallbackPeriod = ""): string {
   let trimmed = String(value ?? "").trim();
   if (!trimmed) return "";
   trimmed = trimmed.replace(/^(\d{1,2})\.(\d{2})/, "$1:$2");
+  if (/noon/i.test(trimmed)) {
+    return "12:00";
+  }
 
   const match = trimmed.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)?$/i);
   if (match) {
@@ -305,18 +434,19 @@ export function extractDateFromText(text: string): { raw: string; iso: string } 
   if (!text) return null;
   // 1. DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, YYYY-MM-DD
   const m1 = text.match(
-    /\b(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4})\b/,
+    /\b(?:\d{4}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{1,2}|\d{1,2}\s*[-/.]\s*\d{1,2}\s*[-/.]\s*\d{2,4})\b/,
   );
   if (m1) {
     const iso = toIsoDate(m1[0]);
     if (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso)) return { raw: m1[0], iso };
   }
+
   // 2. 20-Oct-2024, 20 October 2024, October 20, 2024
   const monthPattern =
     "(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)";
   const m2 = text.match(
     new RegExp(
-      `\\b(?:\\d{1,2}[-/\\s]+${monthPattern}[-/\\s,]+\\d{2,4}|${monthPattern}[-/\\s]+\\d{1,2}[-/\\s,]+\\d{2,4})\\b`,
+      `\\b(?:\\d{1,2}\\s*[-/\\s]+\\s*${monthPattern}\\s*[-/\\s,]+\\s*\\d{2,4}|${monthPattern}\\s*[-/\\s]+\\s*\\d{1,2}\\s*[-/\\s,]+\\s*\\d{2,4})\\b`,
       "i",
     ),
   );
@@ -331,15 +461,39 @@ export function extractTimeFromText(
   text: string,
 ): { raw: string; start: string; end: string } | null {
   if (!text) return null;
-  const match = text.match(
+  const cleaned = text.replace(/noon/gi, "12:00 PM");
+
+  // 1. Range with separator: 10:00 AM - 12:00 PM or 10.00 AM - 12.00 PM
+  const matchRange = cleaned.match(
     /(\d{1,2}(?:[:.]\d{2})?\s*(?:AM|PM)?)\s*(?:-|–|—|to)\s*(\d{1,2}(?:[:.]\d{2})?\s*(?:AM|PM)?)/i,
   );
-  if (match) {
-    const range = parseTimeRange(match[0]);
+  if (matchRange) {
+    const range = parseTimeRange(matchRange[0]);
     if (range.start && range.end) {
-      return { raw: match[0], start: range.start, end: range.end };
+      return { raw: matchRange[0], start: range.start, end: range.end };
     }
   }
+
+  // 2. Two times without explicit dash: "10:00 AM 12:00 PM"
+  const twoTimes = cleaned.match(
+    /(\d{1,2}(?:[:.]\d{2})?\s*(?:AM|PM))\s+(\d{1,2}(?:[:.]\d{2})?\s*(?:AM|PM))/i,
+  );
+  if (twoTimes) {
+    const start = normalizeTime(twoTimes[1]);
+    const end = normalizeTime(twoTimes[2]);
+    if (start && end) return { raw: twoTimes[0], start, end };
+  }
+
+  // 3. Single time: "10:00 AM" or "10.00 AM" or "02:30 PM"
+  const singleTime = cleaned.match(/(\d{1,2}(?:[:.]\d{2})?\s*(?:AM|PM))/i);
+  if (singleTime) {
+    const start = normalizeTime(singleTime[1]);
+    if (start) {
+      const end = addHoursToTimeString(start, 2);
+      return { raw: singleTime[0], start, end };
+    }
+  }
+
   return null;
 }
 
