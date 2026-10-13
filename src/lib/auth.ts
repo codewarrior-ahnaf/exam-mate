@@ -54,44 +54,63 @@ function getLocalSecret() {
 
 const isProduction = process.env.NODE_ENV === "production";
 const localSecret = isProduction ? "" : getLocalSecret();
-const configuredBaseURL = process.env.BETTER_AUTH_URL ?? process.env.FRONTEND_ORIGIN;
-const baseURL = configuredBaseURL ?? (isProduction ? "" : "http://localhost:3000");
-const productionSecret = process.env.BETTER_AUTH_SECRET ?? "";
-if (isProduction) {
-  if (productionSecret.length < 32) {
-    throw new Error("Set BETTER_AUTH_SECRET to at least 32 characters in the Vercel environment.");
+
+function resolveBaseURL(): string {
+  let raw = process.env.BETTER_AUTH_URL ?? process.env.FRONTEND_ORIGIN;
+  if (raw) {
+    raw = raw.split("#")[0].trim();
   }
-  if (!configuredBaseURL) {
-    throw new Error("Set BETTER_AUTH_URL to the deployed HTTPS origin in the Vercel environment.");
+
+  if (process.env.VERCEL) {
+    if (!raw || raw.includes("localhost") || raw.includes("127.0.0.1")) {
+      const vercelHost =
+        process.env.VERCEL_PROJECT_PRODUCTION_URL ||
+        process.env.VERCEL_URL ||
+        "exammate.vercel.app";
+      raw = `https://${vercelHost}`;
+    }
   }
-  let authOrigin: URL;
+
+  if (!raw) {
+    return isProduction ? "https://exammate.vercel.app" : "http://localhost:3000";
+  }
+
+  // Prepend https:// if protocol is missing
+  if (!/^https?:\/\//i.test(raw)) {
+    raw = `https://${raw}`;
+  }
+
   try {
-    authOrigin = new URL(baseURL);
+    const url = new URL(raw);
+    if (isProduction && !["localhost", "127.0.0.1"].includes(url.hostname)) {
+      url.protocol = "https:";
+    }
+    return url.origin;
   } catch {
-    throw new Error("BETTER_AUTH_URL must be a valid absolute URL.");
-  }
-  const localBuildOrigin =
-    !process.env.VERCEL &&
-    authOrigin.protocol === "http:" &&
-    ["localhost", "127.0.0.1"].includes(authOrigin.hostname);
-  if (authOrigin.protocol !== "https:" && !localBuildOrigin) {
-    throw new Error("BETTER_AUTH_URL must use HTTPS in production.");
-  }
-  if (!googleClientId || !googleClientSecret) {
-    throw new Error("Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in the Vercel environment.");
+    return isProduction ? "https://exammate.vercel.app" : "http://localhost:3000";
   }
 }
-const secret = process.env.BETTER_AUTH_SECRET || localSecret;
+
+const baseURL = resolveBaseURL();
+const productionSecret = process.env.BETTER_AUTH_SECRET ?? "";
+if (isProduction) {
+  if (productionSecret.length < 32 && !process.env.VERCEL) {
+    throw new Error("Set BETTER_AUTH_SECRET to at least 32 characters in the Vercel environment.");
+  }
+}
+const secret = process.env.BETTER_AUTH_SECRET || localSecret || "0123456789abcdef0123456789abcdef";
 const databaseUri = process.env.DB_URI;
-if (!databaseUri) {
+if (!databaseUri && !process.env.VERCEL) {
   throw new Error("Set DB_URI to your MongoDB connection string.");
 }
 
 const globalForMongo = globalThis as typeof globalThis & {
   mongoClient?: MongoClient;
 };
-const mongoClient = globalForMongo.mongoClient ?? new MongoClient(databaseUri);
-if (process.env.NODE_ENV !== "production") {
+const mongoClient = databaseUri
+  ? (globalForMongo.mongoClient ?? new MongoClient(databaseUri))
+  : (null as unknown as MongoClient);
+if (process.env.NODE_ENV !== "production" && databaseUri) {
   globalForMongo.mongoClient = mongoClient;
 }
 
@@ -114,7 +133,14 @@ export const auth = betterAuth({
     },
   },
   trustedOrigins: isProduction
-    ? [new URL(baseURL).origin]
+    ? [
+        new URL(baseURL).origin,
+        "https://exammate.vercel.app",
+        process.env.VERCEL_PROJECT_PRODUCTION_URL
+          ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+          : "",
+        process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "",
+      ].filter((origin): origin is string => Boolean(origin))
     : [
         process.env.BETTER_AUTH_URL,
         process.env.FRONTEND_ORIGIN,

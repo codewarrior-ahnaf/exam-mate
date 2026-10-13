@@ -4,7 +4,12 @@ const isProduction = process.env.NODE_ENV === "production";
 
 function getAllowedOrigins(): Set<string> {
   const configuredOrigins = isProduction
-    ? [process.env.BETTER_AUTH_URL ?? process.env.FRONTEND_ORIGIN]
+    ? [
+        process.env.BETTER_AUTH_URL,
+        process.env.FRONTEND_ORIGIN,
+        process.env.VERCEL_PROJECT_PRODUCTION_URL,
+        process.env.VERCEL_URL,
+      ]
     : [
         process.env.BETTER_AUTH_URL,
         process.env.FRONTEND_ORIGIN,
@@ -16,7 +21,8 @@ function getAllowedOrigins(): Set<string> {
     configuredOrigins.flatMap((value) => {
       if (!value) return [];
       try {
-        return [new URL(value).origin];
+        const normalized = /^https?:\/\//i.test(value) ? value : `https://${value}`;
+        return [new URL(normalized).origin];
       } catch {
         return [];
       }
