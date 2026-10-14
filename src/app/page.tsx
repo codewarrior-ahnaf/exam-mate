@@ -28,7 +28,6 @@ import { authClient } from "@/lib/auth-client";
 import { formatDate, formatTime, normalizeCourseCode, coursesMatch, hasIncompleteTrailingDot } from "@/lib/date";
 import { parseExcelFile } from "@/lib/parsers/excel";
 import type { ParsedExam } from "@/lib/parsers/normalize";
-import PageLoadingSkeleton from "./loading-skeleton";
 
 const ROUTINE_STORAGE_KEY = "examMate:routine:v1";
 const RECENT_DRIVE_LINKS_KEY = "examMate:recentDriveLinks";
@@ -321,64 +320,18 @@ function CustomScrollbar() {
 function LazySection({
   children,
   id,
-  className,
-  minHeight,
+  className = "",
   as: Tag = "section",
 }: {
   children: React.ReactNode;
   id?: string;
-  className: string;
-  minHeight: string;
+  className?: string;
+  minHeight?: string;
   as?: "section" | "footer";
 }) {
-  const sectionRef = useRef<HTMLDivElement | null>(null);
-  const [isNearViewport, setIsNearViewport] = useState(false);
-
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (!section) return;
-    if (!("IntersectionObserver" in window)) {
-      setIsNearViewport(true);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry?.isIntersecting) {
-          setIsNearViewport(true);
-          observer.disconnect();
-        }
-      },
-      { rootMargin: "140px 0px" }
-    );
-    observer.observe(section);
-    return () => observer.disconnect();
-  }, []);
-
   return (
-    <Tag
-      id={id}
-      className={className}
-      aria-busy={!isNearViewport}
-    >
-      {isNearViewport ? (
-        children
-      ) : (
-        <div
-          ref={sectionRef}
-          aria-hidden="true"
-          className="min-h-[inherit] w-full animate-pulse rounded-2xl border border-teal-500/15 bg-[#0d1b22]/45 p-5"
-          style={{ minHeight }}
-        >
-          <div className="mb-6 h-4 w-1/3 rounded-full bg-teal-100/10" />
-          <div className="mb-3 h-3 w-2/3 rounded-full bg-teal-100/[0.07]" />
-          <div className="h-3 w-1/2 rounded-full bg-teal-100/[0.07]" />
-          <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <div className="h-24 rounded-xl border border-teal-100/[0.06] bg-teal-100/[0.035]" />
-            <div className="h-24 rounded-xl border border-teal-100/[0.06] bg-teal-100/[0.035]" />
-          </div>
-        </div>
-      )}
+    <Tag id={id} className={className}>
+      {children}
     </Tag>
   );
 }
@@ -388,22 +341,11 @@ export default function Home() {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   const [uploading, setUploading] = useState(false);
-  const [pageReady, setPageReady] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [fileName, setFileName] = useState("");
-  const [courseInput, setCourseInput] = useState(() => {
-    if (typeof window !== "undefined") {
-      return window.sessionStorage.getItem("examMate:pendingCourses") || "";
-    }
-    return "";
-  });
+  const [courseInput, setCourseInput] = useState("");
   const [courseDraft, setCourseDraft] = useState("");
-  const [driveLink, setDriveLink] = useState(() => {
-    if (typeof window !== "undefined") {
-      return window.sessionStorage.getItem("examMate:pendingDriveLink") || "";
-    }
-    return "";
-  });
+  const [driveLink, setDriveLink] = useState("");
   const [restrictedDriveFileId, setRestrictedDriveFileId] = useState("");
   const [requiresGoogleAuth, setRequiresGoogleAuth] = useState(false);
   const [allExams, setAllExams] = useState<ParsedExam[]>([]);
@@ -473,6 +415,11 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
+      const pendingCourses = window.sessionStorage.getItem("examMate:pendingCourses");
+      if (pendingCourses) setCourseInput(pendingCourses);
+      const pendingLink = window.sessionStorage.getItem("examMate:pendingDriveLink");
+      if (pendingLink) setDriveLink(pendingLink);
+
       const raw = window.localStorage.getItem(ROUTINE_STORAGE_KEY);
       if (!raw) return;
       const parsed = JSON.parse(raw) as unknown;
@@ -500,11 +447,6 @@ export default function Home() {
     } catch {
       window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
     }
-  }, []);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => setPageReady(true), 450);
-    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
@@ -1551,8 +1493,6 @@ export default function Home() {
     },
   ];
 
-  if (!pageReady) return <PageLoadingSkeleton />;
-
   return (
     <div className="min-h-screen text-[#E2E8F0] relative flex flex-col items-center justify-start selection:bg-teal-500/30 selection:text-teal-200">
       {/* Background Ambience Glows */}
@@ -1613,7 +1553,7 @@ export default function Home() {
               {googleLoading || calendarSyncing ? (
                 <LoaderCircle className="h-5 w-5 animate-spin text-teal-300" />
               ) : (
-                <img src="/google-logo.png" alt="" aria-hidden="true" width="19" height="19" className="google-connect-logo shrink-0" />
+                <img src="/google-logo.svg" alt="" aria-hidden="true" width="19" height="19" className="google-connect-logo shrink-0" />
               )}
               {!authSession && <span className="whitespace-nowrap text-[11px] font-medium tracking-wide sm:text-[13px]">Connect Google</span>}
             </button>
@@ -1633,6 +1573,7 @@ export default function Home() {
           </div>
         </header>
 
+        <main id="main-content" className="contents">
         {/* HERO SECTION */}
         <LazySection className="order-2 relative w-full pt-2 lg:pt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start" minHeight="460px">
           {/* Left Side: Headline, Subheadline, Buttons */}
@@ -2246,7 +2187,7 @@ export default function Home() {
         </LazySection>
 
         {/* HOW IT WORKS (THE BLUEPRINT OF EXECUTION) */}
-        <LazySection id="how-it-works" className="order-3 w-full pt-8 flex flex-col gap-6" minHeight="420px">
+        <LazySection id="how-it-works" className="content-auto-render order-3 w-full pt-8 flex flex-col gap-6" minHeight="420px">
           {/* Headline */}
           <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
             <div>
@@ -2416,7 +2357,7 @@ export default function Home() {
         </LazySection>
 
         {/* TABLE SECTION */}
-        <LazySection id="results" className="order-5 w-full pt-8 flex flex-col gap-4" minHeight="360px">
+        <LazySection id="results" className="content-auto-render order-5 w-full pt-8 flex flex-col gap-4" minHeight="360px">
           {/* Header */}
           <div className="results-heading no-print flex flex-wrap items-end justify-between gap-3 border-b border-teal-500/20 pb-3">
             <div>
@@ -2630,7 +2571,7 @@ export default function Home() {
         </LazySection>
 
         {/* FAQ SECTION */}
-        <LazySection id="faq" className="order-6 w-full pt-8 flex flex-col gap-5" minHeight="360px">
+        <LazySection id="faq" className="content-auto-render order-6 w-full pt-8 flex flex-col gap-5" minHeight="360px">
           {/* Headline */}
           <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
             <div>
@@ -2664,9 +2605,10 @@ export default function Home() {
             ))}
           </div>
         </LazySection>
+        </main>
 
         {/* FOOTER */}
-        <LazySection as="footer" className="order-7 w-full pt-4 flex flex-col gap-4" minHeight="150px">
+        <LazySection as="footer" className="content-auto-render order-7 w-full pt-4 flex flex-col gap-4" minHeight="150px">
           {/* Main Footer Row */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-teal-500/20 pb-4 text-center sm:text-left">
             {/* Left: ExamMate logo (using icon.svg) and short description */}

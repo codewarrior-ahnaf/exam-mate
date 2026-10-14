@@ -537,21 +537,10 @@ textarea,
     0 0 40px rgba(94, 234, 212, 0.28);
 }
 
-.page-skeleton-block {
-  border: 1px solid rgba(94, 234, 212, 0.09);
-  background: linear-gradient(100deg, rgba(94, 234, 212, 0.035) 20%, rgba(94, 234, 212, 0.11) 38%, rgba(94, 234, 212, 0.035) 56%);
-  background-size: 220% 100%;
-  animation: page-skeleton-shimmer 1.35s ease-in-out infinite;
-}
-
-.page-skeleton-upload {
-  animation: none;
-  border-style: dashed;
-  background: rgba(94, 234, 212, 0.055);
-}
-
-@keyframes page-skeleton-shimmer {
-  to { background-position-x: -220%; }
+/* Native viewport-only rendering optimization: skips rendering & painting until visible */
+.content-auto-render {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 420px;
 }
 
 @media (max-width: 480px) {
