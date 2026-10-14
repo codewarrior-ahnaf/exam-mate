@@ -7,7 +7,21 @@ const nextConfig: NextConfig = {
   // a build runs while the local dev server is open.
   distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   async headers() {
+    const cspHeader = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "font-src 'self' https://fonts.gstatic.com data:",
+      "img-src 'self' blob: data: https:",
+      "connect-src 'self' https://*.google.com https://*.googleapis.com",
+      "frame-ancestors 'none'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+    ].join("; ");
+
     const securityHeaders = [
+      { key: "Content-Security-Policy", value: cspHeader },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "X-Frame-Options", value: "DENY" },
       { key: "X-XSS-Protection", value: "1; mode=block" },
