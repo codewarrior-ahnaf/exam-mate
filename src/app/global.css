@@ -319,13 +319,21 @@ textarea,
   transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.btn-neon-primary:hover {
+.btn-neon-primary:hover:not(:disabled) {
   transform: translateY(-1.5px) scale(1.02);
   box-shadow: 0 0 32px rgba(94, 234, 212, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.8);
 }
 
-.btn-neon-primary:active {
+.btn-neon-primary:active:not(:disabled) {
   transform: translateY(0.5px);
+}
+
+.btn-neon-primary:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+  box-shadow: none !important;
+  filter: grayscale(0.4);
 }
 
 .btn-ghost-glass {
@@ -433,9 +441,9 @@ textarea,
 
 .empty-results-panel {
   isolation: isolate;
-  background: rgba(8, 20, 27, 0.46);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  background: linear-gradient(135deg, rgba(12, 25, 34, 0.45) 0%, rgba(8, 18, 25, 0.55) 100%);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
 }
 
 .empty-results-preview {
@@ -498,16 +506,37 @@ textarea,
   position: absolute;
   z-index: 1;
   inset: 0;
-  background: rgba(6, 15, 20, 0.3);
-  -webkit-backdrop-filter: blur(4px);
-  backdrop-filter: blur(4px);
+  background: rgba(6, 15, 20, 0.25);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
   pointer-events: none;
 }
 
+.empty-results-panel {
+  perspective: 1100px;
+}
+
 .empty-results-card {
-  background: rgba(9, 23, 30, 0.72);
-  -webkit-backdrop-filter: blur(20px);
-  backdrop-filter: blur(20px);
+  background: linear-gradient(135deg, rgba(16, 32, 42, 0.52) 0%, rgba(10, 22, 30, 0.62) 100%);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(94, 234, 212, 0.3);
+  box-shadow:
+    0 20px 50px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 0 25px rgba(94, 234, 212, 0.08);
+  transform-style: preserve-3d;
+  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, box-shadow, border-color;
+}
+
+.empty-results-card:hover {
+  transform: translateY(-8px) scale(1.025) rotateX(4deg);
+  border-color: rgba(94, 234, 212, 0.65);
+  box-shadow:
+    0 32px 65px rgba(0, 0, 0, 0.75),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25),
+    0 0 40px rgba(94, 234, 212, 0.28);
 }
 
 .page-skeleton-block {

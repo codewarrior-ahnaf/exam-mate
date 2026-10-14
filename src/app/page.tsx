@@ -17,6 +17,7 @@ import {
   LoaderCircle,
   Printer,
   Send,
+  ClipboardPaste,
   ShieldCheck,
   Sparkles,
   Trash2,
@@ -32,12 +33,13 @@ import type { ParsedExam } from "@/lib/parsers/normalize";
 import PageLoadingSkeleton from "./loading-skeleton";
 
 const ROUTINE_STORAGE_KEY = "examMate:routine:v1";
+const RECENT_DRIVE_LINKS_KEY = "examMate:recentDriveLinks";
 
 // Demo sample exams for instant synthesis test
 const SAMPLE_EXAMS: ParsedExam[] = [
   {
-    id: "CSE101-2026-10-20-10:00",
-    courseCode: "CSE101",
+    id: "CSE101.1-2026-10-20-10:00",
+    courseCode: "CSE101.1",
     courseTitle: "Introduction to Computer Systems & C Programming",
     date: "2026-10-20",
     startTime: "10:00",
@@ -56,8 +58,8 @@ const SAMPLE_EXAMS: ParsedExam[] = [
     program: "B.Sc. in CSE",
   },
   {
-    id: "MAT101-2026-10-25-10:00",
-    courseCode: "MAT101",
+    id: "MAT101.2-2026-10-25-10:00",
+    courseCode: "MAT101.2",
     courseTitle: "Differential & Integral Calculus",
     date: "2026-10-25",
     startTime: "10:00",
@@ -167,6 +169,12 @@ function isValidStoredRoutine(value: unknown): value is {
   );
 }
 
+function isVarsityEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const lower = email.trim().toLowerCase();
+  return lower.endsWith("@seu.edu.bd") || lower.endsWith(".edu.bd") || lower.endsWith(".edu");
+}
+
 async function startGoogleSignIn() {
   return authClient.signIn.social({
     provider: "google",
@@ -174,7 +182,7 @@ async function startGoogleSignIn() {
     errorCallbackURL: "/?auth_error=google_oauth",
     additionalParams: {
       access_type: "offline",
-      prompt: "consent",
+      prompt: "select_account consent",
     },
   });
 }
@@ -410,8 +418,33 @@ export default function Home() {
   const [pngExporting, setPngExporting] = useState(false);
   const lastCalendarSyncRef = useRef("");
   const [isDragOver, setIsDragOver] = useState(false);
+  const [isSampleRoutine, setIsSampleRoutine] = useState(false);
   const isLinkActive = Boolean(driveLink.trim());
   const isFileUploaded = Boolean(fileName && fileName !== "Google Drive link");
+  const isTableGenerated = generatedExams.length > 0;
+  const isRealRoutineGenerated = isTableGenerated && !isSampleRoutine;
+  const hasRoutineSource = Boolean(isFileUploaded || isLinkActive);
+
+  const isUploadDisabled = isLinkActive || uploading || isRealRoutineGenerated;
+  const isLinkDisabled = isFileUploaded || isRealRoutineGenerated;
+  const isCourseInputDisabled = isRealRoutineGenerated || !hasRoutineSource;
+
+  const [recentLinks, setRecentLinks] = useState<string[]>([]);
+  const [showLinkPopup, setShowLinkPopup] = useState(false);
+  const [showCalendarSyncPrompt, setShowCalendarSyncPrompt] = useState(false);
+  const linkBoxRef = useRef<HTMLDivElement>(null);
+  const linkPopupRef = useRef<HTMLDivElement>(null);
+  const routineSourceRef = useRef<"excel" | "drive" | "sample">("excel");
+
+  // Auto-dismiss the sync prompt after 8 seconds (toast-like) defaulting to no sync
+  useEffect(() => {
+    if (!showCalendarSyncPrompt) return;
+    const timer = window.setTimeout(() => {
+      setShowCalendarSyncPrompt(false);
+    }, 8000);
+    return () => window.clearTimeout(timer);
+  }, [showCalendarSyncPrompt]);
+
   const selectedCourseCodes = useMemo(() => {
     return Array.from(
       new Set(
@@ -423,6 +456,21 @@ export default function Home() {
       )
     );
   }, [courseInput]);
+
+  const hasEnteredCourse =
+    selectedCourseCodes.length > 0 ||
+    Boolean(courseDraft.trim() && !hasIncompleteTrailingDot(courseDraft.trim()));
+
+  const isGenerateDisabled =
+    generating || uploading || isRealRoutineGenerated || !hasRoutineSource || !hasEnteredCourse;
+
+  const generateDisabledReason = isRealRoutineGenerated
+    ? "Routine table is active. Click Clear My Data below to reset."
+    : !hasRoutineSource
+    ? "Upload an Excel file or paste a Drive link first."
+    : !hasEnteredCourse
+    ? "Add at least one course code to enable Generate."
+    : "";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -495,14 +543,154 @@ export default function Home() {
         window.setTimeout(() => {
           void handleGenerate(pendingLink, pendingCourses || undefined);
         }, 350);
+        return;
       }
     } catch {
       // ignore storage errors
     }
-  }, [authSession?.user]);
+
+    try {
+      const justConnected = window.sessionStorage.getItem("examMate:justConnectedGoogle");
+      if (justConnected === "true") {
+        window.sessionStorage.removeItem("examMate:justConnectedGoogle");
+        window.setTimeout(() => {
+          const resultsEl = document.getElementById("results");
+          if (resultsEl) {
+            resultsEl.scrollIntoView({ behavior: "smooth" });
+          }
+        }, 450);
+      }
+    } catch {
+      // ignore
+    }
+
+    // Direct scroll to results section if routine is already generated
+    if (generatedExams.length > 0) {
+      window.setTimeout(() => {
+        const resultsEl = document.getElementById("results");
+        if (resultsEl) {
+          resultsEl.scrollIntoView({ behavior: "smooth" });
+        }
+      }, 400);
+    }
+  }, [authSession?.user, generatedExams.length]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = window.localStorage.getItem(RECENT_DRIVE_LINKS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as unknown;
+        if (Array.isArray(parsed)) {
+          setRecentLinks(
+            parsed.filter(
+              (item): item is string =>
+                typeof item === "string" && Boolean(item.trim())
+            )
+          );
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      const target = event.target as Node;
+      const isInsideBox = linkBoxRef.current?.contains(target);
+      const isInsidePopup = linkPopupRef.current?.contains(target);
+      if (!isInsideBox && !isInsidePopup) {
+        setShowLinkPopup(false);
+      }
+    }
+    if (showLinkPopup) {
+      document.addEventListener("mousedown", handleClickOutside);
+      document.addEventListener("touchstart", handleClickOutside);
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+        document.removeEventListener("touchstart", handleClickOutside);
+      };
+    }
+  }, [showLinkPopup]);
+
+  function addRecentLink(link: string) {
+    const trimmed = link.trim();
+    if (!trimmed) return;
+    setRecentLinks((prev) => {
+      const filtered = prev.filter((item) => item !== trimmed);
+      const updated = [trimmed, ...filtered].slice(0, 5);
+      try {
+        window.localStorage.setItem(
+          RECENT_DRIVE_LINKS_KEY,
+          JSON.stringify(updated)
+        );
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  }
+
+  function removeRecentLink(linkToRemove: string) {
+    setRecentLinks((prev) => {
+      const updated = prev.filter((item) => item !== linkToRemove);
+      try {
+        window.localStorage.setItem(
+          RECENT_DRIVE_LINKS_KEY,
+          JSON.stringify(updated)
+        );
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+  }
+
+  function clearAllRecentLinks() {
+    setRecentLinks([]);
+    try {
+      window.localStorage.removeItem(RECENT_DRIVE_LINKS_KEY);
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleDriveInputChange(val: string) {
+    if (isRealRoutineGenerated) return;
+    if (isSampleRoutine && val.trim()) {
+      setIsSampleRoutine(false);
+      setGeneratedExams([]);
+      setFileName("");
+      setCourseInput("");
+      setCourseDraft("");
+    }
+    setDriveLink(val);
+  }
+
+  async function handlePasteFromClipboard() {
+    if (isLinkDisabled) return;
+    try {
+      if (!navigator.clipboard?.readText) {
+        throw new Error("Clipboard API not supported");
+      }
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim()) {
+        const trimmed = text.trim();
+        handleDriveInputChange(trimmed);
+        addRecentLink(trimmed);
+        setShowLinkPopup(false);
+        setMessage("Google Drive link pasted from clipboard.");
+      } else {
+        setError("Clipboard is empty or does not contain text.");
+      }
+    } catch {
+      setError("Please press Ctrl+V to paste your link.");
+    }
+  }
 
   async function syncCalendar(exams = generatedExams) {
-    if (!authSession || !exams.length) return;
+    if (!authSession || !exams.length || isSampleRoutine || routineSourceRef.current === "sample") return;
     setCalendarSyncing(true);
     try {
       const response = await fetch("/api/calendar/sync", {
@@ -532,14 +720,36 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (!authSession || !generatedExams.length) return;
+    if (!authSession || !generatedExams.length || isSampleRoutine || routineSourceRef.current === "sample") return;
     const syncKey = JSON.stringify(generatedExams);
-    if (lastCalendarSyncRef.current === syncKey) return;
-    lastCalendarSyncRef.current = syncKey;
-    void syncCalendar(generatedExams);
-  }, [authSession, generatedExams]);
+    try {
+      const pendingSync = window.sessionStorage.getItem("examMate:pendingCalendarSync");
+      if (pendingSync === "true") {
+        window.sessionStorage.removeItem("examMate:pendingCalendarSync");
+        if (lastCalendarSyncRef.current !== syncKey) {
+          lastCalendarSyncRef.current = syncKey;
+          void syncCalendar(generatedExams);
+        }
+        return;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Auto-sync for routines generated via Excel file when Google is connected
+    if (routineSourceRef.current === "excel") {
+      if (lastCalendarSyncRef.current !== syncKey) {
+        lastCalendarSyncRef.current = syncKey;
+        void syncCalendar(generatedExams);
+      }
+    }
+  }, [authSession, generatedExams, isSampleRoutine]);
 
   function persistRoutine(exams: ParsedExam[]) {
+    // Only persist actual user routines, never sample routines (so tab close clears sample routine)
+    if (isSampleRoutine) {
+      return;
+    }
     const savedAt = new Date();
     const expiresAt = new Date(savedAt.getTime() + 15 * 24 * 60 * 60 * 1000);
     const payload = {
@@ -557,11 +767,25 @@ export default function Home() {
   }
 
   async function handleFileUpload(file: File) {
+    if (isRealRoutineGenerated) {
+      setError(
+        "An exam routine table is already generated. Click 'Clear My Data' below to reset and upload a new file."
+      );
+      return;
+    }
+    routineSourceRef.current = "excel";
+    if (isSampleRoutine) {
+      setIsSampleRoutine(false);
+      setGeneratedExams([]);
+      setCourseInput("");
+      setCourseDraft("");
+    }
     setUploading(true);
     setError("");
     setMessage("");
     setFileName(file.name);
     setDriveLink("");
+    setShowLinkPopup(false);
 
     try {
       const parsed = await parseRoutineFile(file);
@@ -619,6 +843,12 @@ export default function Home() {
   }
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
+    if (isRealRoutineGenerated) {
+      setError(
+        "An exam routine table is already generated. Click 'Clear My Data' below to reset and upload a new file."
+      );
+      return;
+    }
     const nextFile = event.target.files?.[0];
     if (!nextFile) return;
     void handleFileUpload(nextFile);
@@ -627,6 +857,12 @@ export default function Home() {
   function handleDrop(event: React.DragEvent<HTMLLabelElement>) {
     event.preventDefault();
     setIsDragOver(false);
+    if (isRealRoutineGenerated) {
+      setError(
+        "An exam routine table is already generated. Click 'Clear My Data' below to reset and upload a new file."
+      );
+      return;
+    }
     const file = event.dataTransfer.files?.[0];
     if (file) {
       void handleFileUpload(file);
@@ -644,6 +880,7 @@ export default function Home() {
 
   function clearDriveLink() {
     setDriveLink("");
+    setShowLinkPopup(false);
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem("examMate:pendingDriveLink");
       window.localStorage.removeItem("examMate:savedDriveLink");
@@ -728,33 +965,43 @@ export default function Home() {
     // A pasted Drive link takes priority: scan it in the background, then build the table.
     let sourceExams = allExams;
     if (link) {
+      addRecentLink(link);
+      setShowLinkPopup(false);
+
+      const userEmail = authSession?.user?.email;
+      const isVarsity = isVarsityEmail(userEmail);
+
+      if (!isVarsity) {
+        try {
+          window.sessionStorage.setItem("examMate:pendingDriveLink", link);
+          window.sessionStorage.setItem(
+            "examMate:pendingCourses",
+            effectiveSelectedCodes.join(", ")
+          );
+          if (authSession?.user) {
+            await authClient.signOut();
+          }
+          setGoogleLoading(true);
+          setMessage("Redirecting to Google to connect your varsity email (@seu.edu.bd)…");
+          await startGoogleSignIn();
+          return;
+        } catch (signInErr) {
+          setError(
+            signInErr instanceof Error
+              ? signInErr.message
+              : "Could not start Google connection. Please connect your varsity email (@seu.edu.bd) in the navbar."
+          );
+          setGenerating(false);
+          setGoogleLoading(false);
+          return;
+        }
+      }
+
       try {
         sourceExams = await loadExamsFromDrive(link);
         setAllExams(sourceExams);
         setFileName("Google Drive link");
       } catch (driveError) {
-        if (!authSession?.user) {
-          try {
-            window.sessionStorage.setItem("examMate:pendingDriveLink", link);
-            window.sessionStorage.setItem(
-              "examMate:pendingCourses",
-              effectiveSelectedCodes.join(", ")
-            );
-            setGoogleLoading(true);
-            await startGoogleSignIn();
-            return;
-          } catch (signInErr) {
-            setError(
-              signInErr instanceof Error
-                ? signInErr.message
-                : "Could not start Google connection."
-            );
-            setGenerating(false);
-            setGoogleLoading(false);
-            return;
-          }
-        }
-
         setError(
           driveError instanceof Error
             ? driveError.message
@@ -805,17 +1052,46 @@ export default function Home() {
     setGeneratedExams(matches);
     persistRoutine(matches);
 
+    // In both sample and real routine generation, clear the input boxes
+    setFileName("");
+    setDriveLink("");
+    setCourseInput("");
+    setCourseDraft("");
+    if (inputRef.current) inputRef.current.value = "";
+
+    if (!isSampleRoutine) {
+      setAllExams([]);
+    }
+
     if (!matches.length) {
       setError(`No matches found for: ${unmatched.join(", ")} in routine.`);
       setGenerating(false);
       return;
     }
 
-    setMessage(
-      `${matches.length} exam${matches.length > 1 ? "s" : ""} generated! ${
-        unmatched.length ? `Unmatched: ${unmatched.join(", ")}.` : ""
-      }`
-    );
+    if (isSampleRoutine) {
+      routineSourceRef.current = "sample";
+      setShowCalendarSyncPrompt(false);
+      setMessage(
+        `${matches.length} exam${matches.length > 0 ? "s" : ""} generated! (Sample preview — not linked to Google)`
+      );
+    } else if (link) {
+      routineSourceRef.current = "drive";
+      setShowCalendarSyncPrompt(true);
+      setMessage(
+        `${matches.length} exam${matches.length > 0 ? "s" : ""} generated! ${
+          unmatched.length ? `Unmatched: ${unmatched.join(", ")}.` : ""
+        }`
+      );
+    } else {
+      routineSourceRef.current = "excel";
+      setShowCalendarSyncPrompt(false);
+      setMessage(
+        `${matches.length} exam${matches.length > 0 ? "s" : ""} generated! ${
+          unmatched.length ? `Unmatched: ${unmatched.join(", ")}.` : ""
+        }`
+      );
+    }
     setGenerating(false);
 
     // Scroll to results table section
@@ -826,20 +1102,42 @@ export default function Home() {
   }
 
   function handleLoadSample() {
+    if (generatedExams.length > 0) {
+      setError(
+        "An exam routine table is already generated. Click 'Clear My Data' below to reset before trying a sample routine."
+      );
+      return;
+    }
+    routineSourceRef.current = "sample";
+    lastCalendarSyncRef.current = "";
+    setShowCalendarSyncPrompt(false);
+    setIsSampleRoutine(true);
+    setGeneratedExams([]);
+    try {
+      window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
+    } catch {
+      // ignore
+    }
     setAllExams(SAMPLE_EXAMS);
     setFileName("Sample_Exam_Routine_Fall2026.xlsx");
     setDriveLink("");
-    setCourseInput("CSE101, CSE181.5, MAT101");
+    setShowLinkPopup(false);
+    setCourseInput("CSE101.1, CSE181.5, MAT101.2");
+    setCourseDraft("");
+    setError("");
     setMessage("Sample routine loaded. Click Generate to build your table.");
   }
 
   function clearSavedRoutine() {
     lastCalendarSyncRef.current = "";
+    setShowCalendarSyncPrompt(false);
+    setIsSampleRoutine(false);
     setGeneratedExams([]);
     setCourseInput("");
     setCourseDraft("");
     setFileName("");
     setDriveLink("");
+    setShowLinkPopup(false);
     setAllExams([]);
     if (inputRef.current) inputRef.current.value = "";
     try {
@@ -847,20 +1145,44 @@ export default function Home() {
     } catch {
       // ignore
     }
-    if (authSession) {
-      void authClient.signOut();
-    }
     setSavedNotice("");
     setMessage("Cleared your local exam routine data.");
   }
 
   async function handleGoogleConnect() {
+    if (isSampleRoutine) {
+      setError("Google connection is disabled for sample routines. Please upload your routine or paste a Drive link to sync.");
+      return;
+    }
+    if (driveLink.trim()) {
+      try {
+        window.sessionStorage.setItem("examMate:pendingDriveLink", driveLink.trim());
+        if (selectedCourseCodes.length) {
+          window.sessionStorage.setItem("examMate:pendingCourses", selectedCourseCodes.join(", "));
+        }
+      } catch {
+        // ignore
+      }
+    }
+    try {
+      window.sessionStorage.setItem("examMate:justConnectedGoogle", "true");
+    } catch {
+      // ignore
+    }
     setGoogleLoading(true);
     setError("");
     try {
       const result = await startGoogleSignIn();
       if (result?.error) {
         throw new Error(result.error.message || "Google sign-in could not start.");
+      }
+      if (generatedExams.length > 0) {
+        window.setTimeout(() => {
+          const resultsEl = document.getElementById("results");
+          if (resultsEl) {
+            resultsEl.scrollIntoView({ behavior: "smooth" });
+          }
+        }, 400);
       }
     } catch (connectError) {
       setError(
@@ -1265,12 +1587,20 @@ export default function Home() {
             <button
               type="button"
               onClick={authSession ? handleGoogleDisconnect : handleGoogleConnect}
-              disabled={googleLoading || calendarSyncing || (!authSession && generatedExams.length === 0)}
-              aria-label={authSession ? "Disconnect Google. Synced events will remain in Google Calendar." : generatedExams.length ? "Connect Google and sync this routine" : "Generate a routine before connecting Google"}
+              disabled={googleLoading || calendarSyncing || (!authSession && !isRealRoutineGenerated && !isLinkActive)}
+              aria-label={
+                isSampleRoutine
+                  ? "Sample routine is for preview only and does not link with Google."
+                  : authSession
+                  ? "Disconnect Google. Synced events will remain in Google Calendar."
+                  : isRealRoutineGenerated || isLinkActive
+                  ? "Connect Google and sync this routine"
+                  : "Generate a routine before connecting Google"
+              }
               className={`google-connect-button group ${
                 authSession
                   ? "google-connect-button--connected"
-                  : generatedExams.length
+                  : isRealRoutineGenerated || isLinkActive
                     ? "google-connect-button--ready google-connect-button--connect"
                     : "google-connect-button--disabled google-connect-button--connect"
               }`}
@@ -1283,9 +1613,15 @@ export default function Home() {
               {!authSession && <span className="whitespace-nowrap text-[11px] font-medium tracking-wide sm:text-[13px]">Connect Google</span>}
             </button>
             <span role="tooltip" className="pointer-events-none absolute right-0 top-[calc(100%+1.25rem)] z-50 w-max max-w-[min(18rem,calc(100vw-2rem))] translate-y-1 rounded-lg border border-teal-200/25 bg-[#0b171f]/95 px-3 py-2 text-xs leading-relaxed text-teal-50 opacity-0 shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-200 group-hover/google:translate-y-0 group-hover/google:opacity-100 group-focus-within/google:translate-y-0 group-focus-within/google:opacity-100">
-              {authSession
-                ? "Connected Google. Click to Disconnect"
-                : generatedExams.length
+              {isSampleRoutine
+                ? authSession
+                  ? `Connected (${authSession.user?.email || "Google"}) — Sample routine is not linked or synced.`
+                  : "Sample routine is for preview only and will not link with Google."
+                : authSession
+                ? `Connected Google (${authSession.user?.email || "Google"}). Click to Disconnect`
+                : isLinkActive
+                  ? "Connect your varsity Google account (@seu.edu.bd) to generate routine from Drive link."
+                  : isRealRoutineGenerated
                   ? "Connect Google to sync this exam routine and set reminders."
                   : "Generate your exam routine before connecting Google."}
             </span>
@@ -1425,15 +1761,23 @@ export default function Home() {
                   <label
                     onDragOver={(e) => {
                       e.preventDefault();
-                      if (!isLinkActive && !uploading) setIsDragOver(true);
+                      if (!isUploadDisabled) setIsDragOver(true);
                     }}
                     onDragLeave={() => setIsDragOver(false)}
                     onDrop={(e) => {
-                      if (isLinkActive || uploading) return;
+                      if (isRealRoutineGenerated) {
+                        e.preventDefault();
+                        setError(
+                          "An exam routine table is already generated. Click 'Clear My Data' below to reset and upload a new file."
+                        );
+                        return;
+                      }
+                      if (isUploadDisabled) return;
                       handleDrop(e);
                     }}
+                    onContextMenu={(e) => e.preventDefault()}
                     className={`relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-dashed text-center transition-all ${
-                      isLinkActive
+                      isUploadDisabled
                         ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
                         : isDragOver
                         ? "border-emerald-400 bg-emerald-950/40 cursor-pointer"
@@ -1445,7 +1789,7 @@ export default function Home() {
                       accept=".xlsx,.xls,.xlsm,.csv"
                       onChange={handleFileChange}
                       ref={inputRef}
-                      disabled={isLinkActive || uploading}
+                      disabled={isUploadDisabled}
                       className="sr-only"
                     />
                     <div className="w-10 h-10 rounded-full bg-teal-500/15 border border-teal-400/40 flex items-center justify-center text-[#5EEAD4] shadow-[0_0_15px_rgba(94,234,212,0.25)]">
@@ -1456,13 +1800,15 @@ export default function Home() {
                       )}
                     </div>
                     <span className="text-xs font-semibold text-white max-w-[280px] truncate">
-                      {isLinkActive
+                      {isRealRoutineGenerated
+                        ? "Upload disabled (routine table generated) — clear data to upload"
+                        : isLinkActive
                         ? "Upload disabled (Drive link is active below)"
                         : isFileUploaded
                         ? fileName
                         : "Choose an exam routine file (Excel .xlsx / .xls / .csv)"}
                     </span>
-                    {isFileUploaded && !isLinkActive ? (
+                    {isFileUploaded && !isLinkActive && !isRealRoutineGenerated ? (
                       <button
                         type="button"
                         onClick={(e) => {
@@ -1482,11 +1828,11 @@ export default function Home() {
                       </span>
                     )}
                   </label>
-                  {isLinkActive && (
+                  {!isRealRoutineGenerated && isLinkActive ? (
                     <p className="text-[10px] text-amber-300/80 font-mono-code">
                       * Upload is disabled because a Drive link is entered. Clear the link below to upload a file instead.
                     </p>
-                  )}
+                  ) : null}
                 </div>
 
                 {/* OPTION 2: Google Drive share-link import */}
@@ -1499,45 +1845,180 @@ export default function Home() {
                       OPTION 2: PASTE GOOGLE DRIVE LINK
                     </label>
                   </div>
-                  <div
-                    className={`flex min-h-11 items-center gap-2 rounded-xl border px-3 transition-all ${
-                      isFileUploaded
-                        ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40"
-                        : "border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
-                    }`}
-                  >
-                    <Link2 className="h-4 w-4 shrink-0 text-teal-300" aria-hidden="true" />
-                    <input
-                      id="drive-link"
-                      type="url"
-                      value={driveLink}
-                      disabled={isFileUploaded}
-                      onChange={(event) => setDriveLink(event.target.value)}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") {
-                          event.preventDefault();
-                          void handleGenerate();
+                  <div className="relative">
+                    <div
+                      ref={linkBoxRef}
+                      onClick={() => {
+                        if (!isLinkDisabled) {
+                          setShowLinkPopup(true);
+                          const input = document.getElementById("drive-link") as HTMLInputElement | null;
+                          input?.focus();
                         }
                       }}
-                      placeholder={
-                        isFileUploaded
-                          ? `Link disabled (${fileName} uploaded) — remove file above to use link`
-                          : "https://drive.google.com/file/d/…/view"
-                      }
-                      className="w-full border-0 bg-transparent py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
-                    />
-                    {isLinkActive && !isFileUploaded && (
-                      <button
-                        type="button"
-                        onClick={clearDriveLink}
-                        aria-label="Clear drive link"
-                        className="rounded-full p-1 text-slate-400 hover:text-white transition"
+                      onContextMenu={(e) => {
+                        e.preventDefault();
+                        if (!isLinkDisabled) {
+                          setShowLinkPopup(true);
+                          const input = document.getElementById("drive-link") as HTMLInputElement | null;
+                          input?.focus();
+                        }
+                      }}
+                      className={`relative flex min-h-11 items-center gap-2 rounded-xl border px-3 transition-all duration-200 select-none ${
+                        isLinkDisabled
+                          ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
+                          : isLinkActive
+                          ? "border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
+                          : "border-teal-400/50 bg-teal-950/25 cursor-pointer hover:border-teal-300 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
+                      }`}
+                    >
+                      <Link2 className="h-4 w-4 shrink-0 text-teal-300" aria-hidden="true" />
+                      <input
+                        id="drive-link"
+                        name="examMateDriveLinkInput"
+                        type="text"
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="none"
+                        spellCheck={false}
+                        data-lpignore="true"
+                        value={driveLink}
+                        disabled={isLinkDisabled}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (!isLinkDisabled) setShowLinkPopup(true);
+                        }}
+                        onClick={() => {
+                          if (!isLinkDisabled) setShowLinkPopup(true);
+                        }}
+                        onFocus={() => {
+                          if (!isLinkDisabled) setShowLinkPopup(true);
+                        }}
+                        onChange={(event) => {
+                          handleDriveInputChange(event.target.value);
+                        }}
+                        onPaste={(event) => {
+                          if (isRealRoutineGenerated) {
+                            event.preventDefault();
+                            setError(
+                              "An exam routine table is already generated. Click 'Clear My Data' below to reset and paste a new link."
+                            );
+                            return;
+                          }
+                          const pasted = event.clipboardData.getData("text");
+                          if (pasted && pasted.trim()) {
+                            handleDriveInputChange(pasted.trim());
+                            addRecentLink(pasted.trim());
+                            setShowLinkPopup(false);
+                          }
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Escape") {
+                            setShowLinkPopup(false);
+                          } else if (event.key === "Enter") {
+                            event.preventDefault();
+                            setShowLinkPopup(false);
+                            if (hasEnteredCourse) {
+                              void handleGenerate();
+                            }
+                          }
+                        }}
+                        placeholder={
+                          isRealRoutineGenerated
+                            ? "Link disabled (routine table generated)"
+                            : isFileUploaded
+                            ? `Link disabled (${fileName} uploaded)`
+                            : "https://drive.google.com/file/d/…/view"
+                        }
+                        className="w-full border-0 bg-transparent py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                      />
+                      {isLinkActive && !isFileUploaded && !isRealRoutineGenerated && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            clearDriveLink();
+                            setShowLinkPopup(false);
+                          }}
+                          aria-label="Clear drive link"
+                          className="rounded-full p-1 text-slate-400 hover:text-white transition"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Compact Custom Popup on left click */}
+                    {showLinkPopup && !isLinkDisabled && (
+                      <div
+                        ref={linkPopupRef}
+                        role="dialog"
+                        aria-label="Google Drive link options"
+                        className="absolute left-3 top-[calc(100%+6px)] z-50 w-auto min-w-[200px] max-w-[300px] rounded-lg border border-teal-500/40 bg-[#0B1520]/95 backdrop-blur-md p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.15)] animate-in fade-in zoom-in-95 duration-100"
                       >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                        {/* Upward caret arrow */}
+                        <div className="absolute left-5 -top-1.5 h-2.5 w-2.5 rotate-45 border-l border-t border-teal-500/40 bg-[#0B1520]" />
+
+                        {/* Compact Paste from Clipboard Button */}
+                        <button
+                          type="button"
+                          onClick={() => void handlePasteFromClipboard()}
+                          className="flex w-full items-center justify-between gap-2.5 rounded-md bg-teal-500/15 px-2.5 py-1.5 text-xs font-medium text-teal-200 transition hover:bg-teal-500/25 border border-teal-500/30"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <ClipboardPaste className="h-3.5 w-3.5 text-teal-300 shrink-0" />
+                            <span>Paste from clipboard</span>
+                          </div>
+                          <span className="font-mono-code text-[9px] text-teal-400/70">Ctrl+V</span>
+                        </button>
+
+                        {/* Recent Links (compact) */}
+                        {recentLinks.length > 0 && (
+                          <div className="mt-1 flex flex-col gap-0.5 border-t border-teal-500/15 pt-1">
+                            <div className="flex items-center justify-between px-1 text-[9px] font-mono-code text-teal-400/70">
+                              <span>RECENT</span>
+                              <button
+                                type="button"
+                                onClick={clearAllRecentLinks}
+                                className="hover:text-rose-400 transition"
+                              >
+                                Clear
+                              </button>
+                            </div>
+                            {recentLinks.slice(0, 3).map((link) => (
+                              <div
+                                key={link}
+                                className="group flex items-center justify-between gap-1 px-1.5 py-0.5 rounded text-[11px] hover:bg-teal-500/15 transition cursor-pointer"
+                              >
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleDriveInputChange(link);
+                                    setShowLinkPopup(false);
+                                  }}
+                                  className="truncate font-mono-code text-[10px] text-teal-100 hover:text-white text-left flex-1"
+                                >
+                                  {link}
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeRecentLink(link);
+                                  }}
+                                  aria-label="Remove"
+                                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5"
+                                >
+                                  <X className="h-2.5 w-2.5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
-                  {isFileUploaded ? (
+
+                  {isRealRoutineGenerated ? null : isFileUploaded ? (
                     <p className="text-[10px] text-amber-300/80 font-mono-code">
                       * Drive link is disabled because an Excel file is already uploaded ({fileName}). Click &quot;Remove file&quot; above to use a link instead.
                     </p>
@@ -1553,7 +2034,12 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={handleLoadSample}
-                    className="ml-1 font-medium text-teal-300 underline decoration-teal-300/30 underline-offset-4 transition hover:text-teal-100"
+                    disabled={generatedExams.length > 0}
+                    className={`ml-1 font-medium transition ${
+                      generatedExams.length > 0
+                        ? "text-slate-600 cursor-not-allowed no-underline opacity-50"
+                        : "text-teal-300 underline decoration-teal-300/30 underline-offset-4 hover:text-teal-100 cursor-pointer"
+                    }`}
                   >
                     Try a sample routine
                   </button>
@@ -1568,64 +2054,91 @@ export default function Home() {
                 >
                   COURSE CODES
                 </label>
-                <div className="flex min-h-12 flex-wrap items-center gap-2 rounded-xl glass-card border border-teal-500/30 bg-[#0A1620]/80 px-3 py-2 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400">
+                <div
+                  onContextMenu={(e) => e.preventDefault()}
+                  className={`flex min-h-12 flex-wrap items-center gap-2 rounded-xl glass-card border px-3 py-2 transition-all ${
+                    isCourseInputDisabled
+                      ? "opacity-40 cursor-not-allowed border-slate-700 bg-slate-950/40"
+                      : "border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
+                  }`}
+                >
                   {selectedCourseCodes.map((code) => (
                     <span
                       key={code}
                       className="inline-flex items-center gap-1 rounded-full border border-teal-500/30 bg-teal-500/15 px-2.5 py-1 font-mono-code text-[11px] text-teal-200"
                     >
                       {code}
-                      <button
-                        type="button"
-                        onClick={() => removeCourseCode(code)}
-                        aria-label={`Remove ${code}`}
-                        className="rounded-full p-0.5 text-teal-200/70 transition hover:bg-teal-400/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-300"
-                      >
-                        <X className="h-3 w-3" aria-hidden="true" />
-                      </button>
+                      {!isCourseInputDisabled && (
+                        <button
+                          type="button"
+                          onClick={() => removeCourseCode(code)}
+                          aria-label={`Remove ${code}`}
+                          className="rounded-full p-0.5 text-teal-200/70 transition hover:bg-teal-400/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-300"
+                        >
+                          <X className="h-3 w-3" aria-hidden="true" />
+                        </button>
+                      )}
                     </span>
                   ))}
-                <input
-                  id="course-codes"
-                  type="text"
-                  value={courseDraft}
-                  onChange={(event) => {
-                    const value = event.target.value.toUpperCase();
-                    if (/[\n,]/.test(value)) {
-                      addCourseCodes(value);
-                    } else {
-                      setCourseDraft(value);
-                    }
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") {
-                      event.preventDefault();
-                      const trimmed = courseDraft.trim().toUpperCase();
-                      if (!trimmed || hasIncompleteTrailingDot(trimmed)) {
-                        // Incomplete dot without number: do not add to input
-                        return;
+                  <input
+                    id="course-codes"
+                    type="text"
+                    onContextMenu={(e) => e.preventDefault()}
+                    disabled={isCourseInputDisabled}
+                    value={courseDraft}
+                    onChange={(event) => {
+                      if (isCourseInputDisabled) return;
+                      const value = event.target.value.toUpperCase();
+                      if (/[\n,]/.test(value)) {
+                        addCourseCodes(value);
+                      } else {
+                        setCourseDraft(value);
                       }
-                      addCourseCodes(`${trimmed},`);
-                    } else if (
-                      event.key === "Backspace" &&
-                      !courseDraft &&
-                      selectedCourseCodes.length
-                    ) {
-                      removeCourseCode(selectedCourseCodes[selectedCourseCodes.length - 1] ?? "");
+                    }}
+                    onKeyDown={(event) => {
+                      if (isCourseInputDisabled) return;
+                      if (event.key === "Enter") {
+                        event.preventDefault();
+                        const trimmed = courseDraft.trim().toUpperCase();
+                        if (!trimmed || hasIncompleteTrailingDot(trimmed)) {
+                          return;
+                        }
+                        addCourseCodes(`${trimmed},`);
+                      } else if (
+                        event.key === "Backspace" &&
+                        !courseDraft &&
+                        selectedCourseCodes.length
+                      ) {
+                        removeCourseCode(selectedCourseCodes[selectedCourseCodes.length - 1] ?? "");
+                      }
+                    }}
+                    onBlur={() => {
+                      if (isCourseInputDisabled) return;
+                      const trimmed = courseDraft.trim().toUpperCase();
+                      if (trimmed && !hasIncompleteTrailingDot(trimmed)) {
+                        addCourseCodes(`${trimmed},`);
+                      }
+                    }}
+                    placeholder={
+                      isRealRoutineGenerated
+                        ? "Locked (routine table generated) — click Clear My Data"
+                        : !hasRoutineSource
+                        ? "Upload routine file or paste Drive link first…"
+                        : "Add course code (e.g. CSE181.5)…"
                     }
-                  }}
-                  onBlur={() => {
-                    const trimmed = courseDraft.trim().toUpperCase();
-                    if (trimmed && !hasIncompleteTrailingDot(trimmed)) {
-                      addCourseCodes(`${trimmed},`);
-                    }
-                  }}
-                  placeholder="Add course code (e.g. CSE181.5)…"
-                  className="min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0"
-                  aria-describedby="course-codes-hint"
-                />
+                    className="min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                    aria-describedby="course-codes-hint"
+                  />
                 </div>
-                {hasIncompleteTrailingDot(courseDraft) ? (
+                {isRealRoutineGenerated ? (
+                  <p id="course-codes-hint" className="text-[10px] text-amber-300/80 font-mono-code">
+                    * Routine table is active. Click &quot;Clear My Data&quot; below to reset and generate a new routine.
+                  </p>
+                ) : !hasRoutineSource ? (
+                  <p id="course-codes-hint" className="text-[11px] text-slate-400">
+                    Upload an Excel routine file or paste a Google Drive link above to unlock course codes.
+                  </p>
+                ) : hasIncompleteTrailingDot(courseDraft) ? (
                   <p id="course-codes-hint" className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
                     <span>Dot (.) এর পর সেকশন নাম্বার লিখুন (যেমন .5), তারপর Enter চাপুন।</span>
                   </p>
@@ -1637,21 +2150,38 @@ export default function Home() {
               </div>
 
               {/* Glowing "Generate" button and "Clear My Data" ghost button */}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1 border-t border-teal-500/15">
+              <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-4 border-t border-teal-500/15">
                 <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void handleGenerate()}
-                    disabled={generating || uploading}
-                    className="btn-neon-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-60 disabled:cursor-not-allowed shadow-[0_0_20px_rgba(94,234,212,0.35)]"
-                  >
-                    {generating ? (
-                      <LoaderCircle className="w-4 h-4 animate-spin text-[#041B16]" />
-                    ) : (
-                      <Sparkles className="w-4 h-4 text-[#041B16]" />
+                  <div className={`group/gen relative inline-flex ${isGenerateDisabled ? "cursor-not-allowed" : ""}`}>
+                    <button
+                      type="button"
+                      onClick={() => void handleGenerate()}
+                      disabled={isGenerateDisabled}
+                      aria-label="Generate personal exam table"
+                      className="btn-neon-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-40 disabled:pointer-events-none shadow-[0_0_20px_rgba(94,234,212,0.35)]"
+                    >
+                      {generating ? (
+                        <LoaderCircle className="w-4 h-4 animate-spin text-[#041B16]" />
+                      ) : (
+                        <Sparkles className="w-4 h-4 text-[#041B16]" />
+                      )}
+                      <span>{generating ? "Generating…" : "Generate"}</span>
+                    </button>
+
+                    {/* Custom Glassmorphic Tooltip */}
+                    {generateDisabledReason && (
+                      <div
+                        role="tooltip"
+                        className="pointer-events-none absolute bottom-[calc(100%+0.65rem)] left-0 z-50 w-max max-w-[min(22rem,calc(100vw-2.5rem))] translate-y-1 rounded-xl border border-teal-400/35 bg-[#0A1822]/95 backdrop-blur-xl px-3.5 py-1.5 text-xs font-medium text-teal-100 opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 group-hover/gen:translate-y-0 group-hover/gen:opacity-100"
+                      >
+                        <div className="flex items-center gap-1.5 whitespace-normal sm:whitespace-nowrap">
+                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0 shadow-[0_0_6px_rgba(94,234,212,0.8)]" />
+                          <span>{generateDisabledReason}</span>
+                        </div>
+                        <div className="absolute -bottom-1 left-7 w-2 h-2 rotate-45 border-r border-b border-teal-400/35 bg-[#0A1822]" />
+                      </div>
                     )}
-                    <span>{generating ? "Generating…" : "Generate"}</span>
-                  </button>
+                  </div>
 
                   <button
                     type="button"
@@ -1948,13 +2478,15 @@ export default function Home() {
               <div aria-hidden="true" className="empty-results-scrim" />
               <div
                 role="status"
-                className="empty-results-card relative z-10 flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl border border-teal-300/25 px-5 py-6 text-center shadow-[0_16px_50px_rgba(0,0,0,0.4)] sm:px-10 sm:py-8"
+                className="empty-results-card group/empty relative z-10 flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl px-5 py-6 text-center sm:px-10 sm:py-8 cursor-default select-none"
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teal-300/25 bg-teal-300/10 text-teal-200">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-400/10 text-teal-200 shadow-[0_0_15px_rgba(94,234,212,0.15)] transition-all duration-300 group-hover/empty:scale-110 group-hover/empty:border-teal-300/60 group-hover/empty:bg-teal-400/20 group-hover/empty:text-white group-hover/empty:shadow-[0_0_25px_rgba(94,234,212,0.4)]">
                   <FileText className="h-6 w-6" aria-hidden="true" />
                 </span>
-                <h3 className="text-lg font-semibold text-white">No exam data yet</h3>
-                <p className="max-w-xs text-sm leading-relaxed text-slate-300">
+                <h3 className="text-lg font-semibold text-white tracking-tight transition-colors duration-300 group-hover/empty:text-[#5EEAD4]">
+                  No exam data yet
+                </h3>
+                <p className="max-w-xs text-sm leading-relaxed text-slate-300 transition-colors duration-300 group-hover/empty:text-slate-100">
                   Upload a routine above to see your personal exam table here.
                 </p>
               </div>
@@ -1965,48 +2497,127 @@ export default function Home() {
                 <h1>Exam Routine</h1>
                 <p>Generated: {formatGeneratedDate(new Date())}</p>
               </div>
-              <div className="print-table-wrapper relative w-full rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
-                <table className="routine-table w-full min-w-[760px] text-left text-sm">
-                <thead>
-                  <tr className="border-b border-teal-500/30 bg-[#0B1A24]/90 font-mono-code text-teal-300 text-[11px]">
-                    <th className="py-3.5 px-4 font-semibold">DATE</th>
-                    <th className="py-3.5 px-4 font-semibold">DAY</th>
-                    <th className="py-3.5 px-4 font-semibold">TIME</th>
-                    <th className="py-3.5 px-4 font-semibold">COURSE</th>
-                    <th className="py-3.5 px-4 font-semibold">COURSE TITLE</th>
-                    <th className="py-3.5 px-4 font-semibold">FACULTY</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-teal-500/15">
-                  {generatedExams.map((exam) => (
-                    <tr
-                      key={exam.id}
-                      className="hover:bg-teal-500/10 transition-colors"
-                    >
-                      <td className="py-3.5 px-4 font-mono-code text-white whitespace-nowrap">
-                        {formatExamDate(exam)}
-                      </td>
-                      <td className="py-3.5 px-4 text-[#94A3B8] whitespace-nowrap">
-                        {getDayName(exam.date)}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono-code text-[#5EEAD4] whitespace-nowrap">
-                        {formatTime(exam.startTime)} – {formatTime(exam.endTime)}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono-code font-bold text-teal-200 whitespace-nowrap">
-                        <span className="px-2 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30">
-                          {exam.courseCode}
-                        </span>
-                      </td>
-                      <td className="py-3.5 px-4 text-white font-medium leading-relaxed whitespace-normal">
-                        {exam.courseTitle}
-                      </td>
-                      <td className="py-3.5 px-4 font-mono-code font-semibold text-teal-100">
-                        {formatFaculty(exam.faculty)}
-                      </td>
+
+              {/* Table Container with In-Table Frosted Glass Sync Overlay */}
+              <div className="relative w-full">
+                <div className="print-table-wrapper relative w-full rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+                  <table className="routine-table w-full min-w-[760px] text-left text-sm">
+                  <thead>
+                    <tr className="border-b border-teal-500/30 bg-[#0B1A24]/90 font-mono-code text-teal-300 text-[11px]">
+                      <th className="py-3.5 px-4 font-semibold">DATE</th>
+                      <th className="py-3.5 px-4 font-semibold">DAY</th>
+                      <th className="py-3.5 px-4 font-semibold">TIME</th>
+                      <th className="py-3.5 px-4 font-semibold">COURSE</th>
+                      <th className="py-3.5 px-4 font-semibold">COURSE TITLE</th>
+                      <th className="py-3.5 px-4 font-semibold">FACULTY</th>
                     </tr>
-                  ))}
-                </tbody>
-                </table>
+                  </thead>
+                  <tbody className="divide-y divide-teal-500/15">
+                    {generatedExams.map((exam) => (
+                      <tr
+                        key={exam.id}
+                        className="hover:bg-teal-500/10 transition-colors"
+                      >
+                        <td className="py-3.5 px-4 font-mono-code text-white whitespace-nowrap">
+                          {formatExamDate(exam)}
+                        </td>
+                        <td className="py-3.5 px-4 text-[#94A3B8] whitespace-nowrap">
+                          {getDayName(exam.date)}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono-code text-[#5EEAD4] whitespace-nowrap">
+                          {formatTime(exam.startTime)} – {formatTime(exam.endTime)}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono-code font-bold text-teal-200 whitespace-nowrap">
+                          <span className="px-2 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30">
+                            {exam.courseCode}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-white font-medium leading-relaxed whitespace-normal">
+                          {exam.courseTitle}
+                        </td>
+                        <td className="py-3.5 px-4 font-mono-code font-semibold text-teal-100">
+                          {formatFaculty(exam.faculty)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  </table>
+                </div>
+
+                {/* In-Table Compact Frosted Glass Sync Overlay */}
+                {showCalendarSyncPrompt && generatedExams.length > 0 && !isSampleRoutine && (
+                  <div className="no-print absolute inset-0 z-30 flex items-center justify-center p-4 pointer-events-none">
+                    <div
+                      role="dialog"
+                      aria-label="Google Calendar Sync Prompt"
+                      className="pointer-events-auto relative flex flex-col items-center gap-2.5 rounded-2xl border border-teal-400/35 bg-[#0A1822]/85 backdrop-blur-xl px-6 py-3.5 text-center shadow-[0_16px_40px_rgba(0,0,0,0.7),0_0_20px_rgba(94,234,212,0.18)] max-w-xs animate-in fade-in zoom-in-95 duration-200"
+                    >
+                      <span className="text-xs sm:text-[13px] font-semibold text-white tracking-wide whitespace-nowrap">
+                        Sync with Google Calendar?
+                      </span>
+
+                      {/* 2 icon buttons: Cross & Correct with custom frosted glass tooltips */}
+                      <div className="flex items-center justify-center gap-5">
+                        {/* Cross Button: Cancel / Do not sync */}
+                        <div className="group/cancel relative inline-flex items-center justify-center">
+                          <button
+                            type="button"
+                            onClick={() => setShowCalendarSyncPrompt(false)}
+                            aria-label="Do not sync with Google Calendar"
+                            className="flex items-center justify-center bg-transparent border-0 text-rose-400 hover:text-rose-300 hover:scale-125 transition-transform p-1 cursor-pointer focus:outline-none"
+                          >
+                            <X className="h-5 w-5 stroke-[2.5]" />
+                          </button>
+                          <div
+                            role="tooltip"
+                            className="pointer-events-none absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 z-50 rounded-lg border border-rose-500/35 bg-[#0D151D]/95 backdrop-blur-xl px-2.5 py-0.5 text-[10px] font-medium text-rose-200 opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.6),0_0_12px_rgba(244,63,94,0.25)] transition-all duration-150 group-hover/cancel:translate-y-0 group-hover/cancel:opacity-100 -translate-y-1 whitespace-nowrap"
+                          >
+                            <span>Cancel</span>
+                            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rotate-45 border-l border-t border-rose-500/35 bg-[#0D151D]" />
+                          </div>
+                        </div>
+
+                        {/* Correct Button: Confirm sync */}
+                        <div className="group/sync relative inline-flex items-center justify-center">
+                          <button
+                            type="button"
+                            disabled={calendarSyncing}
+                            onClick={async () => {
+                              if (!authSession) {
+                                try {
+                                  window.sessionStorage.setItem("examMate:pendingCalendarSync", "true");
+                                  setGoogleLoading(true);
+                                  await startGoogleSignIn();
+                                } catch (err) {
+                                  setError(err instanceof Error ? err.message : "Could not start Google sign in.");
+                                  setGoogleLoading(false);
+                                }
+                                return;
+                              }
+                              setShowCalendarSyncPrompt(false);
+                              await syncCalendar(generatedExams);
+                            }}
+                            aria-label="Sync to Google Calendar"
+                            className="flex items-center justify-center bg-transparent border-0 text-emerald-400 hover:text-emerald-300 hover:scale-125 transition-transform p-1 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {calendarSyncing ? (
+                              <LoaderCircle className="h-5 w-5 animate-spin text-emerald-300" />
+                            ) : (
+                              <Check className="h-5 w-5 stroke-[2.5]" />
+                            )}
+                          </button>
+                          <div
+                            role="tooltip"
+                            className="pointer-events-none absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 z-50 rounded-lg border border-teal-400/35 bg-[#0D151D]/95 backdrop-blur-xl px-2.5 py-0.5 text-[10px] font-medium text-teal-200 opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.6),0_0_12px_rgba(94,234,212,0.25)] transition-all duration-150 group-hover/sync:translate-y-0 group-hover/sync:opacity-100 -translate-y-1 whitespace-nowrap"
+                          >
+                            <span>Sync</span>
+                            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rotate-45 border-l border-t border-teal-400/35 bg-[#0D151D]" />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="print-footer">ExamMate</div>
             </>

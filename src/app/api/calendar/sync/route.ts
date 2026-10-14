@@ -80,6 +80,20 @@ export async function POST(request: Request) {
   }
   if (!exams.length) return NextResponse.json({ synced: 0 });
 
+  if (
+    exams.some(
+      (exam) =>
+        exam.id?.startsWith("CSE101.1-2026-10-20") ||
+        exam.id?.startsWith("CSE181.5-2026-10-31") ||
+        exam.id?.startsWith("MAT101.2-2026-10-25")
+    )
+  ) {
+    return NextResponse.json(
+      { error: "Sample preview routines cannot be synced to Google Calendar." },
+      { status: 400 }
+    );
+  }
+
   try {
     const token = await auth.api.getAccessToken({
       body: { accountId: googleAccount.id },
