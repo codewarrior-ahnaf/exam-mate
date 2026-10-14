@@ -24,8 +24,6 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { GState, jsPDF } from "jspdf";
-import autoTable from "jspdf-autotable";
 import { authClient } from "@/lib/auth-client";
 import { formatDate, formatTime, normalizeCourseCode, coursesMatch, hasIncompleteTrailingDot } from "@/lib/date";
 import { parseExcelFile } from "@/lib/parsers/excel";
@@ -1221,7 +1219,12 @@ export default function Home() {
     }
   }
 
-  function buildPdfDocument(): jsPDF {
+  async function buildPdfDocument() {
+    const [{ jsPDF, GState }, { default: autoTable }] = await Promise.all([
+      import("jspdf"),
+      import("jspdf-autotable"),
+    ]);
+
     const doc = new jsPDF({ orientation: "landscape" });
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
@@ -1308,12 +1311,12 @@ export default function Home() {
     return doc;
   }
 
-  function exportPdf() {
+  async function exportPdf() {
     if (!generatedExams.length) {
       setError("Synthesize your exam table first before exporting a PDF.");
       return;
     }
-    const doc = buildPdfDocument();
+    const doc = await buildPdfDocument();
     doc.save("ExamMate-Schedule.pdf");
   }
 
@@ -1468,7 +1471,7 @@ export default function Home() {
 
     try {
       // 1. Build the exact PDF document
-      const doc = buildPdfDocument();
+      const doc = await buildPdfDocument();
       const pdfBytes = doc.output("arraybuffer");
 
       // 2. Render that exact PDF to high-resolution PNG using pdfjs-dist
@@ -1569,6 +1572,8 @@ export default function Home() {
             <img
               src="/icon.svg"
               alt="ExamMate Logo"
+              width="28"
+              height="28"
               className="h-6 w-6 shrink-0 sm:h-7 sm:w-7"
             />
             <span className="whitespace-nowrap text-[17px] font-bold tracking-tight text-white sm:text-xl">
@@ -1608,7 +1613,7 @@ export default function Home() {
               {googleLoading || calendarSyncing ? (
                 <LoaderCircle className="h-5 w-5 animate-spin text-teal-300" />
               ) : (
-                <img src="/google-logo.png" alt="" aria-hidden="true" className="google-connect-logo shrink-0" />
+                <img src="/google-logo.png" alt="" aria-hidden="true" width="19" height="19" className="google-connect-logo shrink-0" />
               )}
               {!authSession && <span className="whitespace-nowrap text-[11px] font-medium tracking-wide sm:text-[13px]">Connect Google</span>}
             </button>
@@ -2670,6 +2675,8 @@ export default function Home() {
                 <img
                   src="/icon.svg"
                   alt="ExamMate Logo"
+                  width="24"
+                  height="24"
                   className="h-6 w-6"
                 />
                 <span className="font-tech text-lg font-bold text-white tracking-wider">

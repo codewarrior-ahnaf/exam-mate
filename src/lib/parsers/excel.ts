@@ -1,4 +1,3 @@
-import * as XLSX from "xlsx";
 import type { ParsedExam } from "@/lib/parsers/normalize";
 import {
   extractCourseCodes,
@@ -16,7 +15,10 @@ function cellValue(row: unknown[], column: number | undefined): string {
 }
 
 export async function parseExcelFile(file: File): Promise<ParsedExam[]> {
-  const arrayBuffer = await file.arrayBuffer();
+  const [XLSX, arrayBuffer] = await Promise.all([
+    import("xlsx"),
+    file.arrayBuffer(),
+  ]);
   const workbook = XLSX.read(arrayBuffer, { type: "array", cellDates: true });
   const exams = new Map<string, ParsedExam>();
   let foundRoutineHeaders = false;

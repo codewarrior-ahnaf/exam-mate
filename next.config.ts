@@ -2,6 +2,13 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  compress: true,
+  experimental: {
+    optimizePackageImports: ["lucide-react"],
+  },
+  compiler: {
+    removeConsole: process.env.NODE_ENV === "production" ? { exclude: ["error", "warn"] } : false,
+  },
   // Keep `next dev` artifacts separate from production builds. Both commands
   // otherwise write to `.next`, which can invalidate Webpack dev chunks when
   // a build runs while the local dev server is open.
