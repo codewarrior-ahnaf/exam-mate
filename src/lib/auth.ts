@@ -164,7 +164,6 @@ export const auth = betterAuth({
       clientId: googleClientId,
       clientSecret: googleClientSecret,
       accessType: "offline",
-      prompt: "select_account consent",
       scope: [
         "openid",
         "email",

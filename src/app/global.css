@@ -533,23 +533,22 @@ textarea,
   background: linear-gradient(135deg, rgba(16, 32, 42, 0.52) 0%, rgba(10, 22, 30, 0.62) 100%);
   -webkit-backdrop-filter: blur(24px);
   backdrop-filter: blur(24px);
-  border: 1px solid rgba(94, 234, 212, 0.3);
+  border: 1px solid rgba(94, 234, 212, 0.2);
   box-shadow:
-    0 20px 50px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0 25px rgba(94, 234, 212, 0.08);
+    0 16px 36px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transform-style: preserve-3d;
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
   will-change: transform, box-shadow, border-color;
 }
 
 .empty-results-card:hover {
-  transform: translateY(-8px) scale(1.025) rotateX(4deg);
-  border-color: rgba(94, 234, 212, 0.65);
+  transform: translateY(-4px) scale(1.01);
+  border-color: rgba(94, 234, 212, 0.35);
   box-shadow:
-    0 32px 65px rgba(0, 0, 0, 0.75),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25),
-    0 0 40px rgba(94, 234, 212, 0.28);
+    0 22px 50px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(255, 255, 255, 0.15),
+    0 0 16px rgba(94, 234, 212, 0.1);
 }
 
 @media (max-width: 480px) {

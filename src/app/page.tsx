@@ -447,7 +447,7 @@ export default function Home() {
     generating || uploading || isRealRoutineGenerated || !hasRoutineSource || !hasEnteredCourse;
 
   const generateDisabledReason = isRealRoutineGenerated
-    ? "Routine table is active. Click Clear My Data below to reset."
+    ? "Click Clear My Data below to reset."
     : !hasRoutineSource
     ? "Upload an Excel file or paste a Drive link first."
     : !hasEnteredCourse
@@ -2162,11 +2162,7 @@ export default function Home() {
                     aria-describedby="course-codes-hint"
                   />
                 </div>
-                {isRealRoutineGenerated ? (
-                  <p id="course-codes-hint" className="text-[10px] text-amber-300/80 font-mono-code">
-                    * Routine table is active. Click &quot;Clear My Data&quot; below to reset and generate a new routine.
-                  </p>
-                ) : !hasRoutineSource ? (
+                {!hasRoutineSource ? (
                   <p id="course-codes-hint" className="text-[11px] text-slate-400">
                     Upload an Excel routine file or paste a Google Drive link above to unlock course codes.
                   </p>
@@ -2512,7 +2508,7 @@ export default function Home() {
                 role="status"
                 className="empty-results-card group/empty relative z-10 flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl px-5 py-6 text-center sm:px-10 sm:py-8 cursor-default select-none"
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-400/10 text-teal-200 shadow-[0_0_15px_rgba(94,234,212,0.15)] transition-all duration-300 group-hover/empty:scale-110 group-hover/empty:border-teal-300/60 group-hover/empty:bg-teal-400/20 group-hover/empty:text-white group-hover/empty:shadow-[0_0_25px_rgba(94,234,212,0.4)]">
+                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teal-500/20 bg-teal-500/5 text-teal-300 transition-all duration-300 group-hover/empty:scale-105 group-hover/empty:border-teal-400/35 group-hover/empty:bg-teal-500/10 group-hover/empty:text-teal-200 group-hover/empty:shadow-[0_0_12px_rgba(94,234,212,0.12)]">
                   <FileText className="h-6 w-6" aria-hidden="true" />
                 </span>
                 <h3 className="text-lg font-semibold text-white tracking-tight transition-colors duration-300 group-hover/empty:text-[#5EEAD4]">
