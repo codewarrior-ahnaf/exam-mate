@@ -172,11 +172,25 @@ function isVarsityEmail(email?: string | null): boolean {
   return lower.endsWith("@seu.edu.bd") || lower.endsWith(".edu.bd") || lower.endsWith(".edu");
 }
 
-async function startGoogleSignIn() {
+const GOOGLE_BASE_SCOPES = [
+  "openid",
+  "email",
+  "profile",
+  "https://www.googleapis.com/auth/calendar.events",
+];
+
+const GOOGLE_DRIVE_SCOPES = [
+  ...GOOGLE_BASE_SCOPES,
+  "https://www.googleapis.com/auth/drive.readonly",
+];
+
+async function startGoogleSignIn(options?: { requireDrive?: boolean }) {
+  const scopes = options?.requireDrive ? GOOGLE_DRIVE_SCOPES : GOOGLE_BASE_SCOPES;
   return authClient.signIn.social({
     provider: "google",
     callbackURL: "/",
     errorCallbackURL: "/?auth_error=google_oauth",
+    scopes,
     additionalParams: {
       access_type: "offline",
       prompt: "select_account consent",
@@ -923,7 +937,7 @@ export default function Home() {
           }
           setGoogleLoading(true);
           setMessage("Redirecting to Google to connect your varsity email (@seu.edu.bd)…");
-          await startGoogleSignIn();
+          await startGoogleSignIn({ requireDrive: true });
           return;
         } catch (signInErr) {
           setError(
@@ -1112,7 +1126,8 @@ export default function Home() {
     setGoogleLoading(true);
     setError("");
     try {
-      const result = await startGoogleSignIn();
+      const requireDrive = Boolean(isLinkActive || routineSourceRef.current === "drive");
+      const result = await startGoogleSignIn({ requireDrive });
       if (result?.error) {
         throw new Error(result.error.message || "Google sign-in could not start.");
       }
@@ -1489,7 +1504,7 @@ export default function Home() {
     {
       question: "Can I sync my schedule to Google Calendar?",
       answer:
-        "Yes. Connect your Google account to automatically add your exams to your primary Google Calendar with course codes, dates, and times, complete with 24-hour advance reminders before every exam.",
+        "Yes. Connect your Google account to automatically add your exams to your primary Google Calendar with course codes, dates, and times, complete with advance reminders (9:00 AM and 8:00 PM the day before each exam).",
     },
   ];
 
@@ -2533,7 +2548,8 @@ export default function Home() {
                                 try {
                                   window.sessionStorage.setItem("examMate:pendingCalendarSync", "true");
                                   setGoogleLoading(true);
-                                  await startGoogleSignIn();
+                                  const requireDrive = routineSourceRef.current === "drive";
+                                  await startGoogleSignIn({ requireDrive });
                                 } catch (err) {
                                   setError(err instanceof Error ? err.message : "Could not start Google sign in.");
                                   setGoogleLoading(false);

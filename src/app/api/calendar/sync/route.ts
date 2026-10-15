@@ -23,6 +23,54 @@ function eventId(id: string) {
   return `e${createHash("sha256").update(id).digest("hex")}`;
 }
 
+function computeExamReminders(examDate: string, startTime: string): { method: string; minutes: number }[] {
+  const eventStartMs = new Date(`${examDate}T${startTime}:00+06:00`).getTime();
+  const now = Date.now();
+
+  const [y, m, d] = examDate.split("-").map(Number);
+  const dayBefore = new Date(Date.UTC(y, (m ?? 1) - 1, d ?? 1));
+  dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+  const prevYear = dayBefore.getUTCFullYear();
+  const prevMonth = String(dayBefore.getUTCMonth() + 1).padStart(2, "0");
+  const prevDay = String(dayBefore.getUTCDate()).padStart(2, "0");
+  const prevDateStr = `${prevYear}-${prevMonth}-${prevDay}`;
+
+  // 1. Morning reminder: 9:00 AM on the day before the exam
+  const morningMs = new Date(`${prevDateStr}T09:00:00+06:00`).getTime();
+  // 2. Night reminder: 8:00 PM (20:00) on the day before the exam
+  const nightMs = new Date(`${prevDateStr}T20:00:00+06:00`).getTime();
+
+  const overrides: { method: string; minutes: number }[] = [];
+
+  // If 9:00 AM on the day before is still in the future:
+  if (morningMs > now) {
+    const morningMinutes = Math.round((eventStartMs - morningMs) / (60 * 1000));
+    if (morningMinutes > 0 && morningMinutes <= 40320) {
+      overrides.push({ method: "popup", minutes: morningMinutes });
+    }
+  }
+
+  // If 8:00 PM on the day before is still in the future:
+  if (nightMs > now) {
+    const nightMinutes = Math.round((eventStartMs - nightMs) / (60 * 1000));
+    if (nightMinutes > 0 && nightMinutes <= 40320) {
+      overrides.push({ method: "popup", minutes: nightMinutes });
+    }
+  }
+
+  // Fallback: If both previous-day reminders have already passed, but the exam is still upcoming:
+  if (overrides.length === 0 && eventStartMs > now) {
+    const minutesLeft = Math.round((eventStartMs - now) / (60 * 1000));
+    if (minutesLeft >= 60) {
+      overrides.push({ method: "popup", minutes: 60 });
+    } else if (minutesLeft > 15) {
+      overrides.push({ method: "popup", minutes: 15 });
+    }
+  }
+
+  return overrides;
+}
+
 export async function POST(request: Request) {
   if (!isTrustedMutationRequest(request)) {
     return NextResponse.json({ error: "Request origin is not allowed." }, { status: 403 });
@@ -105,11 +153,16 @@ export async function POST(request: Request) {
       const end = `${exam.date}T${exam.endTime}:00+06:00`;
       const title = `${exam.courseCode} Exam`;
       const description = [exam.courseTitle, exam.faculty && `Faculty: ${exam.faculty}`, exam.program && `Program: ${exam.program}`].filter(Boolean).join("\n");
+      const reminderOverrides = computeExamReminders(exam.date, exam.startTime);
       const event = {
-        id: eventId(exam.id), summary: title, description,
+        id: eventId(exam.id),
+        summary: title,
+        description,
         start: { dateTime: start, timeZone: "Asia/Dhaka" },
         end: { dateTime: end, timeZone: "Asia/Dhaka" },
-        reminders: { useDefault: false, overrides: [{ method: "popup", minutes: 60 * 24 }] },
+        reminders: reminderOverrides.length > 0
+          ? { useDefault: false, overrides: reminderOverrides }
+          : { useDefault: false, overrides: [] },
       };
       const calendarUrl = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
       const requestOptions: RequestInit = {

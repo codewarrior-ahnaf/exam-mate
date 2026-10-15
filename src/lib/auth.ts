@@ -167,7 +167,6 @@ export const auth = betterAuth({
         "email",
         "profile",
         "https://www.googleapis.com/auth/calendar.events",
-        "https://www.googleapis.com/auth/drive.readonly",
       ],
     },
   },
