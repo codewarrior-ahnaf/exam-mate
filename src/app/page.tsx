@@ -536,12 +536,11 @@ export default function Home() {
       if (raw) {
         const parsed = JSON.parse(raw) as unknown;
         if (Array.isArray(parsed)) {
-          setRecentLinks(
-            parsed.filter(
-              (item): item is string =>
-                typeof item === "string" && Boolean(item.trim())
-            )
+          const valid = parsed.filter(
+            (item): item is string =>
+              typeof item === "string" && Boolean(item.trim())
           );
+          setRecentLinks(valid.slice(0, 1));
         }
       }
     } catch {
@@ -571,19 +570,16 @@ export default function Home() {
   function addRecentLink(link: string) {
     const trimmed = link.trim();
     if (!trimmed) return;
-    setRecentLinks((prev) => {
-      const filtered = prev.filter((item) => item !== trimmed);
-      const updated = [trimmed, ...filtered].slice(0, 5);
-      try {
-        window.localStorage.setItem(
-          RECENT_DRIVE_LINKS_KEY,
-          JSON.stringify(updated)
-        );
-      } catch {
-        // ignore
-      }
-      return updated;
-    });
+    const updated = [trimmed];
+    setRecentLinks(updated);
+    try {
+      window.localStorage.setItem(
+        RECENT_DRIVE_LINKS_KEY,
+        JSON.stringify(updated)
+      );
+    } catch {
+      // ignore
+    }
   }
 
   function removeRecentLink(linkToRemove: string) {
@@ -1945,7 +1941,7 @@ export default function Home() {
                                 Clear
                               </button>
                             </div>
-                            {recentLinks.slice(0, 3).map((link) => (
+                            {recentLinks.slice(0, 1).map((link) => (
                               <div
                                 key={link}
                                 className="group flex items-center justify-between gap-1 px-1.5 py-0.5 rounded text-[11px] hover:bg-teal-500/15 transition cursor-pointer"
@@ -2202,7 +2198,7 @@ export default function Home() {
         </LazySection>
 
         {/* HOW IT WORKS (THE BLUEPRINT OF EXECUTION) */}
-        <LazySection id="how-it-works" className="content-auto-render order-3 w-full pt-8 flex flex-col gap-6" minHeight="420px">
+        <LazySection id="how-it-works" className="order-3 w-full pt-8 flex flex-col gap-6" minHeight="420px">
           {/* Headline */}
           <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
             <div>
@@ -2329,9 +2325,9 @@ export default function Home() {
           </div>
 
           {/* Clear, evenly sized cards keep the workflow easy to scan. */}
-          <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-3 p-2 -m-2 overflow-visible">
             {/* Step 1 */}
-            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6">
+            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 hover:border-teal-400/80">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200">
                   1
@@ -2344,7 +2340,7 @@ export default function Home() {
             </div>
 
             {/* Step 2 */}
-            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6">
+            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 hover:border-teal-400/80">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200">
                   2
@@ -2357,7 +2353,7 @@ export default function Home() {
             </div>
 
             {/* Step 3 */}
-            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6">
+            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 hover:border-teal-400/80">
               <div className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200">
                   3
@@ -2372,7 +2368,7 @@ export default function Home() {
         </LazySection>
 
         {/* TABLE SECTION */}
-        <LazySection id="results" className="content-auto-render order-5 w-full pt-8 flex flex-col gap-4" minHeight="360px">
+        <LazySection id="results" className="order-5 w-full pt-8 flex flex-col gap-4" minHeight="360px">
           {/* Header */}
           <div className="results-heading no-print flex flex-wrap items-end justify-between gap-3 border-b border-teal-500/20 pb-3">
             <div>
@@ -2587,7 +2583,7 @@ export default function Home() {
         </LazySection>
 
         {/* FAQ SECTION */}
-        <LazySection id="faq" className="content-auto-render order-6 w-full pt-8 flex flex-col gap-5" minHeight="360px">
+        <LazySection id="faq" className="order-6 w-full pt-8 flex flex-col gap-5" minHeight="360px">
           {/* Headline */}
           <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
             <div>
@@ -2604,11 +2600,11 @@ export default function Home() {
           </div>
 
           {/* Accordion-style vertical list of 4 questions */}
-          <div className="flex flex-col gap-2.5">
+          <div className="flex flex-col gap-3 p-2 -m-2 overflow-visible">
             {faqItems.map((item) => (
               <details
                 key={item.question}
-                className="group rounded-2xl glass-card border border-teal-500/20 overflow-hidden transition-all duration-200"
+                className="group rounded-2xl glass-card border border-teal-500/20 overflow-hidden transition-all duration-200 hover:border-teal-400/80"
               >
                 <summary className="flex items-center justify-between gap-4 p-4 sm:p-5 cursor-pointer text-sm font-medium text-white hover:text-teal-200 select-none">
                   <span>{item.question}</span>
@@ -2624,7 +2620,7 @@ export default function Home() {
         </main>
 
         {/* FOOTER */}
-        <LazySection as="footer" className="content-auto-render order-7 w-full pt-4 flex flex-col gap-4" minHeight="150px">
+        <LazySection as="footer" className="order-7 w-full pt-4 flex flex-col gap-4" minHeight="150px">
           {/* Main Footer Row */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-teal-500/20 pb-4 text-center sm:text-left">
             {/* Left: ExamMate logo (using icon.svg) and short description */}
