@@ -133,7 +133,7 @@ function isHtmlPayload(bytes: Uint8Array): boolean {
 
 function extractHtmlError(html: string, hadLoginRedirect?: boolean): string {
   if (hadLoginRedirect) {
-    return "This Google Drive link is private or restricted. Please open Google Drive, click 'Share', and change General Access to 'Anyone with the link can view' (Viewer). Or download the .xlsx file and upload it directly.";
+    return "Private Drive link. Set access to 'Anyone with link' or upload file.";
   }
 
   const lower = html.toLowerCase();
@@ -144,7 +144,7 @@ function extractHtmlError(html: string, hadLoginRedirect?: boolean): string {
     lower.includes("need access") ||
     lower.includes("request access")
   ) {
-    return "This Google Drive link is private or restricted. Please open Google Drive, click 'Share', and change General Access to 'Anyone with the link can view' (Viewer). Or download the .xlsx file and upload it directly.";
+    return "Private Drive link. Set access to 'Anyone with link' or upload file.";
   }
 
   if (
@@ -152,7 +152,7 @@ function extractHtmlError(html: string, hadLoginRedirect?: boolean): string {
     lower.includes("page not found") ||
     lower.includes("not exist")
   ) {
-    return "The file was not found on Google Drive. Please verify the link or upload the .xlsx file directly.";
+    return "File not found on Google Drive. Check link or upload file.";
   }
 
   if (
@@ -160,10 +160,10 @@ function extractHtmlError(html: string, hadLoginRedirect?: boolean): string {
     lower.includes("too many users") ||
     lower.includes("virus scan")
   ) {
-    return "Google Drive download limit reached. Please download the file to your computer and upload the .xlsx file directly.";
+    return "Google Drive download limit reached. Please upload directly.";
   }
 
-  return "Could not download this file from Google Drive. Make sure General Access is set to 'Anyone with the link can view' or upload the .xlsx file directly.";
+  return "Could not download file. Check Drive access or upload directly.";
 }
 
 async function fetchWithCookieJar(
@@ -301,8 +301,7 @@ async function downloadDriveFile(
 ): Promise<{ buffer: Uint8Array; ext: "xlsx" | "xls" | "csv" } | { error: string }> {
   if (target.isFolder) {
     return {
-      error:
-        "This is a Google Drive folder link. Please open the Excel file inside the folder and share that file's link.",
+      error: "Please share the file link, not a folder.",
     };
   }
 
@@ -499,11 +498,11 @@ async function downloadViaGoogleDriveApi(
         if (parsed.error?.message) {
           const msg = parsed.error.message;
           if (msg.includes("Google Drive API has not been used") || msg.includes("is not enabled")) {
-            capturedError = "Google Drive API is not enabled in your Google Cloud project. Please enable Google Drive API in Google Cloud Console.";
+            capturedError = "Google Drive API disabled in Google Cloud Console.";
           } else if (msg.toLowerCase().includes("insufficient") || msg.toLowerCase().includes("scope")) {
-            capturedError = "Google Drive access was not granted. When Google sign-in opens, please tick 'Select all' (or Google Drive permission) so ExamMate can access your routine.";
+            capturedError = "Google Drive access denied. Please grant Drive permission.";
           } else if (res.status === 404 || msg.toLowerCase().includes("not found")) {
-            capturedError = "File not found or your connected Google account does not have permission to view it. Make sure you connect with your Southeast University (@seu.edu.bd) account.";
+            capturedError = "File not found. Please connect your varsity (@seu.edu.bd) account.";
           }
         }
       } catch {
@@ -557,7 +556,7 @@ export async function POST(request: Request) {
   const rateLimit = checkRateLimit(`drive_fetch:${clientIp}`, 20, 60 * 1000);
   if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: "Too many requests. Please wait a moment before trying again." },
+      { error: "Too many requests. Please wait a moment." },
       { status: 429 }
     );
   }
@@ -571,7 +570,7 @@ export async function POST(request: Request) {
   }
 
   if (!link) {
-    return NextResponse.json({ error: "Please paste a Google Drive link." }, { status: 400 });
+    return NextResponse.json({ error: "Please enter a Google Drive link." }, { status: 400 });
   }
 
   console.log(`[Drive API] Received link from client: "${link}"`);
@@ -579,8 +578,7 @@ export async function POST(request: Request) {
   if (!target) {
     return NextResponse.json(
       {
-        error:
-          "Please paste a valid Google Drive or Google Sheets share link (e.g. drive.google.com/file/d/...).",
+        error: "Invalid Drive link. Please enter a valid file link.",
       },
       { status: 400 }
     );
@@ -642,7 +640,7 @@ export async function POST(request: Request) {
 
     if (result.buffer.byteLength === 0 || result.buffer.byteLength > MAX_BYTES) {
       return NextResponse.json(
-        { error: "The file is empty or larger than 15 MB." },
+        { error: "File is empty or exceeds 15 MB." },
         { status: 413 }
       );
     }
@@ -660,7 +658,7 @@ export async function POST(request: Request) {
         error:
           err instanceof Error
             ? err.message
-            : "Could not reach Google Drive. Please check your network and try again.",
+            : "Could not connect to Google Drive. Check your connection.",
       },
       { status: 502 }
     );

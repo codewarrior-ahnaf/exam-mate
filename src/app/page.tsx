@@ -1,11 +1,20 @@
 "use client";
 
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import Link from "next/link";
 import {
   ArrowRight,
   CalendarDays,
   Check,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Clock3,
   AlertTriangle,
@@ -25,7 +34,13 @@ import {
   X,
 } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { formatDate, formatTime, normalizeCourseCode, coursesMatch, hasIncompleteTrailingDot } from "@/lib/date";
+import {
+  formatDate,
+  formatTime,
+  normalizeCourseCode,
+  coursesMatch,
+  hasIncompleteTrailingDot,
+} from "@/lib/date";
 import { parseExcelFile } from "@/lib/parsers/excel";
 import type { ParsedExam } from "@/lib/parsers/normalize";
 
@@ -116,7 +131,9 @@ async function parseRoutineFile(file: File): Promise<ParsedExam[]> {
   ) {
     return parseExcelFile(file);
   }
-  throw new Error("Please upload an Excel spreadsheet file (.xlsx, .xls, .csv).");
+  throw new Error(
+    "Please upload an Excel spreadsheet file (.xlsx, .xls, .csv).",
+  );
 }
 
 function sortExams(exams: ParsedExam[]) {
@@ -133,7 +150,10 @@ function getDayName(isoDate: string): string {
 }
 
 function formatExamDate(exam: ParsedExam): string {
-  return (exam.displayDate?.trim() || formatDate(exam.date)).replace(/(\d)\.(?=\d)/g, "$1/");
+  return (exam.displayDate?.trim() || formatDate(exam.date)).replace(
+    /(\d)\.(?=\d)/g,
+    "$1/",
+  );
 }
 
 function formatFaculty(faculty: string): string {
@@ -169,7 +189,11 @@ function isValidStoredRoutine(value: unknown): value is {
 function isVarsityEmail(email?: string | null): boolean {
   if (!email) return false;
   const lower = email.trim().toLowerCase();
-  return lower.endsWith("@seu.edu.bd") || lower.endsWith(".edu.bd") || lower.endsWith(".edu");
+  return (
+    lower.endsWith("@seu.edu.bd") ||
+    lower.endsWith(".edu.bd") ||
+    lower.endsWith(".edu")
+  );
 }
 
 const GOOGLE_BASE_SCOPES = [
@@ -184,8 +208,13 @@ const GOOGLE_DRIVE_SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
 ];
 
-async function startGoogleSignIn(options?: { requireDrive?: boolean; forceConsent?: boolean }) {
-  const scopes = options?.requireDrive ? GOOGLE_DRIVE_SCOPES : GOOGLE_BASE_SCOPES;
+async function startGoogleSignIn(options?: {
+  requireDrive?: boolean;
+  forceConsent?: boolean;
+}) {
+  const scopes = options?.requireDrive
+    ? GOOGLE_DRIVE_SCOPES
+    : GOOGLE_BASE_SCOPES;
   return authClient.signIn.social({
     provider: "google",
     callbackURL: "/",
@@ -193,16 +222,22 @@ async function startGoogleSignIn(options?: { requireDrive?: boolean; forceConsen
     scopes,
     additionalParams: {
       access_type: "offline",
-      prompt: options?.forceConsent ? "select_account consent" : "select_account",
+      prompt: "select_account consent",
     },
   });
 }
 
 async function startGoogleSignInPopup(options?: { requireDrive?: boolean }) {
-  const scopes = options?.requireDrive ? GOOGLE_DRIVE_SCOPES : GOOGLE_BASE_SCOPES;
+  const scopes = options?.requireDrive
+    ? GOOGLE_DRIVE_SCOPES
+    : GOOGLE_BASE_SCOPES;
   return (authClient.signIn as any).popup({
     provider: "google",
     scopes,
+    additionalParams: {
+      access_type: "offline",
+      prompt: "select_account consent",
+    },
   });
 }
 
@@ -222,10 +257,17 @@ function CustomScrollbar() {
       const trackHeight = Math.max(window.innerHeight - 16, 0);
       const maxScroll = Math.max(
         document.documentElement.scrollHeight - window.innerHeight,
-        0
+        0,
       );
       const thumbHeight = maxScroll
-        ? Math.min(trackHeight, Math.max(36, (trackHeight * window.innerHeight) / document.documentElement.scrollHeight))
+        ? Math.min(
+            trackHeight,
+            Math.max(
+              36,
+              (trackHeight * window.innerHeight) /
+                document.documentElement.scrollHeight,
+            ),
+          )
         : trackHeight;
       const scrollTop = window.scrollY;
 
@@ -261,7 +303,7 @@ function CustomScrollbar() {
     const travel = Math.max(scrollbar.trackHeight - scrollbar.thumbHeight, 1);
     const thumbOffset = Math.min(
       Math.max(clientY - bounds.top - scrollbar.thumbHeight / 2, 0),
-      travel
+      travel,
     );
     window.scrollTo({
       top: (thumbOffset / travel) * scrollbar.maxScroll,
@@ -288,16 +330,16 @@ function CustomScrollbar() {
         if (!dragRef.current) return;
         const thumbTravel = Math.max(
           scrollbar.trackHeight - scrollbar.thumbHeight,
-          1
+          1,
         );
         const nextTop = Math.min(
           Math.max(
             dragRef.current.scrollTop +
               ((event.clientY - dragRef.current.pointerY) / thumbTravel) *
                 scrollbar.maxScroll,
-            0
+            0,
           ),
-          scrollbar.maxScroll
+          scrollbar.maxScroll,
         );
         window.scrollTo(0, nextTop);
       }}
@@ -317,7 +359,7 @@ function CustomScrollbar() {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={Math.round(
-            (scrollbar.scrollTop / Math.max(scrollbar.maxScroll, 1)) * 100
+            (scrollbar.scrollTop / Math.max(scrollbar.maxScroll, 1)) * 100,
           )}
           tabIndex={0}
           className="custom-scrollbar-thumb absolute left-1/2 w-1 -translate-x-1/2 rounded-full bg-teal-200/50 transition-[width,background-color] hover:w-1.5 hover:bg-teal-200/80 focus-visible:w-1.5 focus-visible:bg-teal-200"
@@ -328,10 +370,12 @@ function CustomScrollbar() {
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") window.scrollBy(0, 40);
             if (event.key === "ArrowUp") window.scrollBy(0, -40);
-            if (event.key === "PageDown") window.scrollBy(0, window.innerHeight);
+            if (event.key === "PageDown")
+              window.scrollBy(0, window.innerHeight);
             if (event.key === "PageUp") window.scrollBy(0, -window.innerHeight);
             if (event.key === "Home") window.scrollTo(0, 0);
-            if (event.key === "End") window.scrollTo(0, document.documentElement.scrollHeight);
+            if (event.key === "End")
+              window.scrollTo(0, document.documentElement.scrollHeight);
           }}
         />
       </div>
@@ -372,6 +416,10 @@ export default function Home() {
   const [requiresGoogleAuth, setRequiresGoogleAuth] = useState(false);
   const [allExams, setAllExams] = useState<ParsedExam[]>([]);
   const [generatedExams, setGeneratedExams] = useState<ParsedExam[]>([]);
+  const [visibleRowCount, setVisibleRowCount] = useState<number>(0);
+  const [isRevealingRows, setIsRevealingRows] = useState<boolean>(false);
+  const [isHydrated, setIsHydrated] = useState<boolean>(false);
+  const rowRevealIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
@@ -386,6 +434,15 @@ export default function Home() {
   const isTableGenerated = generatedExams.length > 0;
   const isRealRoutineGenerated = isTableGenerated && !isSampleRoutine;
   const hasRoutineSource = Boolean(isFileUploaded || isLinkActive);
+  const hasDataToClear = Boolean(
+    isTableGenerated ||
+    allExams.length > 0 ||
+    isFileUploaded ||
+    isLinkActive ||
+    courseInput.trim() ||
+    courseDraft.trim() ||
+    isSampleRoutine,
+  );
 
   const isUploadDisabled = isLinkActive || uploading || isRealRoutineGenerated;
   const isLinkDisabled = isFileUploaded || isRealRoutineGenerated;
@@ -394,10 +451,98 @@ export default function Home() {
   const [recentLinks, setRecentLinks] = useState<string[]>([]);
   const [showLinkPopup, setShowLinkPopup] = useState(false);
   const [showCalendarSyncPrompt, setShowCalendarSyncPrompt] = useState(false);
+  const [isSyncPromptClosing, setIsSyncPromptClosing] = useState(false);
+  const syncPromptTimeoutRef = useRef<NodeJS.Timeout | number | null>(null);
   const [hasCalendarScope, setHasCalendarScope] = useState(false);
   const linkBoxRef = useRef<HTMLDivElement>(null);
   const linkPopupRef = useRef<HTMLDivElement>(null);
   const routineSourceRef = useRef<"excel" | "drive" | "sample">("excel");
+  const tableWrapperRef = useRef<HTMLDivElement>(null);
+  const [tableScrollState, setTableScrollState] = useState({
+    canLeft: false,
+    canRight: false,
+  });
+
+  const updateTableScrollState = useCallback(() => {
+    const el = tableWrapperRef.current;
+    if (!el) {
+      setTableScrollState({ canLeft: false, canRight: false });
+      return;
+    }
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    if (maxScroll <= 2) {
+      setTableScrollState({ canLeft: false, canRight: false });
+      return;
+    }
+    setTableScrollState({
+      canLeft: el.scrollLeft > 6,
+      canRight: el.scrollLeft < maxScroll - 6,
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = tableWrapperRef.current;
+    if (!el) return;
+    updateTableScrollState();
+    const handleScroll = () => updateTableScrollState();
+    el.addEventListener("scroll", handleScroll, { passive: true });
+    window.addEventListener("resize", updateTableScrollState);
+    const observer = new ResizeObserver(() => updateTableScrollState());
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", handleScroll);
+      window.removeEventListener("resize", updateTableScrollState);
+      observer.disconnect();
+    };
+  }, [generatedExams, updateTableScrollState]);
+
+  const handleTableMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest("button, a, input, select, textarea")) return;
+
+    const el = tableWrapperRef.current;
+    if (!el) return;
+    if (el.scrollWidth <= el.clientWidth + 2) return;
+
+    const startX = e.clientX;
+    const startScrollLeft = el.scrollLeft;
+    let isDragging = false;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      if (!isDragging && Math.abs(deltaX) > 3) {
+        isDragging = true;
+        document.body.style.userSelect = "none";
+        el.style.cursor = "grabbing";
+      }
+      if (isDragging) {
+        el.scrollLeft = startScrollLeft - deltaX;
+      }
+    };
+
+    const handleMouseUp = () => {
+      if (isDragging) {
+        document.body.style.userSelect = "";
+        el.style.cursor = "";
+      }
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+  };
+
+  function closeSyncPrompt(callback?: () => void) {
+    if (isSyncPromptClosing) return;
+    setIsSyncPromptClosing(true);
+    window.setTimeout(() => {
+      setShowCalendarSyncPrompt(false);
+      setIsSyncPromptClosing(false);
+      callback?.();
+    }, 450);
+  }
 
   useEffect(() => {
     if (!authSession) {
@@ -408,7 +553,11 @@ export default function Home() {
     void fetch("/api/calendar/sync")
       .then((res) => res.json())
       .then((data: { hasCalendarScope?: boolean }) => {
-        if (!isCancelled && data && typeof data.hasCalendarScope === "boolean") {
+        if (
+          !isCancelled &&
+          data &&
+          typeof data.hasCalendarScope === "boolean"
+        ) {
           setHasCalendarScope(data.hasCalendarScope);
         }
       })
@@ -418,14 +567,15 @@ export default function Home() {
     };
   }, [authSession]);
 
-  // Auto-dismiss the sync prompt after 20 seconds (toast-like) defaulting to no sync
+  // Auto-dismiss the sync prompt after 20 seconds defaulting to no sync
   useEffect(() => {
-    if (!showCalendarSyncPrompt || calendarSyncing) return;
+    if (!showCalendarSyncPrompt || calendarSyncing || isSyncPromptClosing)
+      return;
     const timer = window.setTimeout(() => {
-      setShowCalendarSyncPrompt(false);
+      closeSyncPrompt();
     }, 20000);
     return () => window.clearTimeout(timer);
-  }, [showCalendarSyncPrompt, calendarSyncing]);
+  }, [showCalendarSyncPrompt, calendarSyncing, isSyncPromptClosing]);
 
   const selectedCourseCodes = useMemo(() => {
     return Array.from(
@@ -434,35 +584,51 @@ export default function Home() {
           .split(/[\n,]+/)
           .map((value) => value.trim().toUpperCase())
           .filter((value) => Boolean(value) && !hasIncompleteTrailingDot(value))
-          .map((value) => normalizeCourseCode(value))
-      )
+          .map((value) => normalizeCourseCode(value)),
+      ),
     );
   }, [courseInput]);
 
   const hasEnteredCourse =
     selectedCourseCodes.length > 0 ||
-    Boolean(courseDraft.trim() && !hasIncompleteTrailingDot(courseDraft.trim()));
+    Boolean(
+      courseDraft.trim() && !hasIncompleteTrailingDot(courseDraft.trim()),
+    );
 
   const isGenerateDisabled =
-    generating || uploading || isRealRoutineGenerated || !hasRoutineSource || !hasEnteredCourse;
+    generating ||
+    uploading ||
+    isRealRoutineGenerated ||
+    !hasRoutineSource ||
+    !hasEnteredCourse;
 
   const generateDisabledReason = isRealRoutineGenerated
-    ? "Click Clear My Data below to reset."
+    ? "Routine table active. Click Clear My Data to reset."
     : !hasRoutineSource
-    ? "Upload an Excel file or paste a Drive link first."
-    : !hasEnteredCourse
-    ? "Add at least one course code to enable Generate."
-    : "";
+      ? "Upload a routine file or paste Drive link."
+      : !hasEnteredCourse
+        ? "Enter at least one course code to generate."
+        : "";
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
-      const pendingCourses = window.sessionStorage.getItem("examMate:pendingCourses");
+      const pendingCourses = window.sessionStorage.getItem(
+        "examMate:pendingCourses",
+      );
       if (pendingCourses) setCourseInput(pendingCourses);
-      const pendingLink = window.sessionStorage.getItem("examMate:pendingDriveLink");
+      const pendingLink = window.sessionStorage.getItem(
+        "examMate:pendingDriveLink",
+      );
       if (pendingLink) setDriveLink(pendingLink);
-      const savedSource = window.sessionStorage.getItem("examMate:routineSource");
-      if (savedSource === "drive" || savedSource === "excel" || savedSource === "sample") {
+      const savedSource = window.sessionStorage.getItem(
+        "examMate:routineSource",
+      );
+      if (
+        savedSource === "drive" ||
+        savedSource === "excel" ||
+        savedSource === "sample"
+      ) {
         routineSourceRef.current = savedSource;
       }
 
@@ -475,7 +641,10 @@ export default function Home() {
       }
 
       const expiresAt = new Date(parsed.expiresAt);
-      if (Number.isNaN(expiresAt.getTime()) || expiresAt.getTime() < Date.now()) {
+      if (
+        Number.isNaN(expiresAt.getTime()) ||
+        expiresAt.getTime() < Date.now()
+      ) {
         window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
         return;
       }
@@ -487,12 +656,22 @@ export default function Home() {
       }
 
       setGeneratedExams(validExams);
+      setVisibleRowCount(validExams.length);
+      setIsRevealingRows(false);
       setSavedNotice(
-        `Routine restored · expires on ${formatDate(parsed.expiresAt.slice(0, 10))}`
+        `Routine restored (valid until ${formatDate(parsed.expiresAt.slice(0, 10))})`,
       );
     } catch {
       window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
+    } finally {
+      setIsHydrated(true);
     }
+
+    return () => {
+      if (rowRevealIntervalRef.current) {
+        clearInterval(rowRevealIntervalRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -517,8 +696,12 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined" || !authSession?.user) return;
     try {
-      const pendingLink = window.sessionStorage.getItem("examMate:pendingDriveLink");
-      const pendingCourses = window.sessionStorage.getItem("examMate:pendingCourses");
+      const pendingLink = window.sessionStorage.getItem(
+        "examMate:pendingDriveLink",
+      );
+      const pendingCourses = window.sessionStorage.getItem(
+        "examMate:pendingCourses",
+      );
       if (pendingLink) {
         window.sessionStorage.removeItem("examMate:pendingDriveLink");
         window.sessionStorage.removeItem("examMate:pendingCourses");
@@ -543,7 +726,9 @@ export default function Home() {
     }
 
     try {
-      const justConnected = window.sessionStorage.getItem("examMate:justConnectedGoogle");
+      const justConnected = window.sessionStorage.getItem(
+        "examMate:justConnectedGoogle",
+      );
       if (justConnected === "true") {
         window.sessionStorage.removeItem("examMate:justConnectedGoogle");
         window.setTimeout(() => {
@@ -577,7 +762,7 @@ export default function Home() {
         if (Array.isArray(parsed)) {
           const valid = parsed.filter(
             (item): item is string =>
-              typeof item === "string" && Boolean(item.trim())
+              typeof item === "string" && Boolean(item.trim()),
           );
           setRecentLinks(valid.slice(0, 1));
         }
@@ -614,7 +799,7 @@ export default function Home() {
     try {
       window.localStorage.setItem(
         RECENT_DRIVE_LINKS_KEY,
-        JSON.stringify(updated)
+        JSON.stringify(updated),
       );
     } catch {
       // ignore
@@ -627,7 +812,7 @@ export default function Home() {
       try {
         window.localStorage.setItem(
           RECENT_DRIVE_LINKS_KEY,
-          JSON.stringify(updated)
+          JSON.stringify(updated),
         );
       } catch {
         // ignore
@@ -650,6 +835,8 @@ export default function Home() {
     if (isSampleRoutine && val.trim()) {
       setIsSampleRoutine(false);
       setGeneratedExams([]);
+      setVisibleRowCount(0);
+      setIsRevealingRows(false);
       setFileName("");
       setCourseInput("");
       setCourseDraft("");
@@ -669,17 +856,22 @@ export default function Home() {
         handleDriveInputChange(trimmed);
         addRecentLink(trimmed);
         setShowLinkPopup(false);
-        setMessage("Google Drive link pasted from clipboard.");
+        setMessage("Drive link pasted.");
       } else {
-        setError("Clipboard is empty or does not contain text.");
+        setError("Clipboard is empty.");
       }
     } catch {
-      setError("Please press Ctrl+V to paste your link.");
+      setError("Press Ctrl+V to paste.");
     }
   }
 
   async function syncCalendar(exams = generatedExams): Promise<boolean> {
-    if (!exams.length || isSampleRoutine || routineSourceRef.current === "sample") return false;
+    if (
+      !exams.length ||
+      isSampleRoutine ||
+      routineSourceRef.current === "sample"
+    )
+      return false;
     setCalendarSyncing(true);
     try {
       const response = await fetch("/api/calendar/sync", {
@@ -690,27 +882,44 @@ export default function Home() {
       const responseText = await response.text();
       let result: { synced?: number; error?: string };
       try {
-        result = JSON.parse(responseText) as { synced?: number; error?: string };
+        result = JSON.parse(responseText) as {
+          synced?: number;
+          error?: string;
+        };
       } catch {
         throw new Error(
           response.ok
             ? "The server returned an unreadable Calendar response. Please try again."
-            : `Calendar sync failed with a server error (${response.status}). Please try again later.`
+            : `Calendar sync failed (${response.status}). Please try again later.`,
         );
       }
       if (!response.ok) {
-        const err = new Error(result.error || "Could not sync Google Calendar.");
+        if (response.status === 401) {
+          setHasCalendarScope(false);
+          setError(
+            "Google session expired. Please click 'Connect Google' in navbar to sync.",
+          );
+          return false;
+        }
+        const err = new Error(
+          result.error || "Could not sync Google Calendar.",
+        );
         (err as any).status = response.status;
         throw err;
       }
       setHasCalendarScope(true);
+      const count = result.synced ?? exams.length;
       setMessage(
-        `${result.synced ?? exams.length} exam${(result.synced ?? exams.length) === 1 ? "" : "s"} synced to Google Calendar with reminders (9:00 AM & 8:00 PM the day before).`
+        `${count} exam${count === 1 ? "" : "s"} synced to Google Calendar with reminders.`,
       );
       return true;
     } catch (syncError) {
       lastCalendarSyncRef.current = "";
-      setError(syncError instanceof Error ? syncError.message : "Could not sync Google Calendar.");
+      setError(
+        syncError instanceof Error
+          ? syncError.message
+          : "Calendar sync failed.",
+      );
       return false;
     } finally {
       setCalendarSyncing(false);
@@ -718,10 +927,18 @@ export default function Home() {
   }
 
   useEffect(() => {
-    if (!authSession || !generatedExams.length || isSampleRoutine || routineSourceRef.current === "sample") return;
+    if (
+      !authSession ||
+      !generatedExams.length ||
+      isSampleRoutine ||
+      routineSourceRef.current === "sample"
+    )
+      return;
     const syncKey = JSON.stringify(generatedExams);
     try {
-      const pendingSync = window.sessionStorage.getItem("examMate:pendingCalendarSync");
+      const pendingSync = window.sessionStorage.getItem(
+        "examMate:pendingCalendarSync",
+      );
       if (pendingSync === "true") {
         window.sessionStorage.removeItem("examMate:pendingCalendarSync");
         setShowCalendarSyncPrompt(false);
@@ -733,14 +950,6 @@ export default function Home() {
       }
     } catch {
       // ignore
-    }
-
-    // Auto-sync for routines generated via Excel file when Google is connected
-    if (routineSourceRef.current === "excel") {
-      if (lastCalendarSyncRef.current !== syncKey) {
-        lastCalendarSyncRef.current = syncKey;
-        void syncCalendar(generatedExams);
-      }
     }
   }, [authSession, generatedExams, isSampleRoutine]);
 
@@ -767,15 +976,15 @@ export default function Home() {
 
   async function handleFileUpload(file: File) {
     if (isRealRoutineGenerated) {
-      setError(
-        "An exam routine table is already generated. Click 'Clear My Data' below to reset and upload a new file."
-      );
+      setError("Routine table active. Click 'Clear My Data' to reset.");
       return;
     }
     routineSourceRef.current = "excel";
     if (isSampleRoutine) {
       setIsSampleRoutine(false);
       setGeneratedExams([]);
+      setVisibleRowCount(0);
+      setIsRevealingRows(false);
       setCourseInput("");
       setCourseDraft("");
     }
@@ -790,19 +999,21 @@ export default function Home() {
       const parsed = await parseRoutineFile(file);
       if (!parsed.length) {
         throw new Error(
-          "No valid exams found. Verify the file includes Course Code, Date, and Time columns."
+          "No valid exams found. Check Course Code, Date & Time columns.",
         );
       }
       setAllExams(sortExams(parsed));
-      setMessage(`Synthesized ${parsed.length} exam entries successfully.`);
+      setMessage(`${parsed.length} exams loaded successfully.`);
     } catch (uploadError) {
       setError(
         uploadError instanceof Error
           ? uploadError.message
-          : "Could not parse this routine file."
+          : "Could not parse routine file.",
       );
       setAllExams([]);
       setGeneratedExams([]);
+      setVisibleRowCount(0);
+      setIsRevealingRows(false);
     } finally {
       setUploading(false);
     }
@@ -826,7 +1037,7 @@ export default function Home() {
       if (details.requiresGoogleAuth) {
         setRequiresGoogleAuth(true);
       }
-      throw new Error(details.error || "Could not read this Google Drive link.");
+      throw new Error(details.error || "Could not read Google Drive link.");
     }
     setRestrictedDriveFileId("");
     setRequiresGoogleAuth(false);
@@ -835,7 +1046,7 @@ export default function Home() {
     const parsed = await parseRoutineFile(new File([blob], name));
     if (!parsed.length) {
       throw new Error(
-        "No valid exams found in the linked file. Verify it includes Course Code, Date, and Time columns."
+        "No valid exams found. Check Course Code, Date & Time columns.",
       );
     }
     return sortExams(parsed);
@@ -843,9 +1054,7 @@ export default function Home() {
 
   function handleFileChange(event: React.ChangeEvent<HTMLInputElement>) {
     if (isRealRoutineGenerated) {
-      setError(
-        "An exam routine table is already generated. Click 'Clear My Data' below to reset and upload a new file."
-      );
+      setError("Routine table active. Click 'Clear My Data' to reset.");
       return;
     }
     const nextFile = event.target.files?.[0];
@@ -857,9 +1066,7 @@ export default function Home() {
     event.preventDefault();
     setIsDragOver(false);
     if (isRealRoutineGenerated) {
-      setError(
-        "An exam routine table is already generated. Click 'Clear My Data' below to reset and upload a new file."
-      );
+      setError("Routine table active. Click 'Clear My Data' to reset.");
       return;
     }
     const file = event.dataTransfer.files?.[0];
@@ -911,26 +1118,34 @@ export default function Home() {
     });
 
     if (validCodes.length) {
-      const nextCodes = Array.from(new Set([...selectedCourseCodes, ...validCodes])).join(", ");
+      const nextCodes = Array.from(
+        new Set([...selectedCourseCodes, ...validCodes]),
+      ).join(", ");
       setCourseInput(nextCodes);
     }
     setCourseDraft(remainingDraft);
   }
 
   function removeCourseCode(codeToRemove: string) {
-    const nextCodes = selectedCourseCodes.filter((code) => code !== codeToRemove).join(", ");
+    const nextCodes = selectedCourseCodes
+      .filter((code) => code !== codeToRemove)
+      .join(", ");
     setCourseInput(nextCodes);
   }
 
-  async function handleGenerate(overrideLink?: string, overrideCourses?: string) {
+  async function handleGenerate(
+    overrideLink?: string,
+    overrideCourses?: string,
+  ) {
     const rawLink = typeof overrideLink === "string" ? overrideLink : driveLink;
     const link = rawLink.trim();
     if (!link && !allExams.length) {
-      setError("Upload an exam routine file or paste a Google Drive link before generating.");
+      setError("Upload a routine file or paste a Drive link.");
       return;
     }
 
-    const effectiveCourseSource = typeof overrideCourses === "string" ? overrideCourses : courseInput;
+    const effectiveCourseSource =
+      typeof overrideCourses === "string" ? overrideCourses : courseInput;
     const pendingDraft = courseDraft.trim().toUpperCase();
     let effectiveSelectedCodes = Array.from(
       new Set(
@@ -938,8 +1153,8 @@ export default function Home() {
           .split(/[\n,]+/)
           .map((v) => v.trim().toUpperCase())
           .filter((v) => Boolean(v) && !hasIncompleteTrailingDot(v))
-          .map((v) => normalizeCourseCode(v))
-      )
+          .map((v) => normalizeCourseCode(v)),
+      ),
     );
 
     if (pendingDraft && !hasIncompleteTrailingDot(pendingDraft)) {
@@ -953,13 +1168,26 @@ export default function Home() {
     }
 
     if (!effectiveSelectedCodes.length) {
-      setError("Add at least one course code to build your personal exam table.");
+      setError("Enter at least one course code.");
       return;
     }
 
     setGenerating(true);
     setError("");
     setMessage("");
+
+    // Smoothly scroll down so user immediately sees the glowing loading skeleton table
+    window.setTimeout(() => {
+      const resultsEl = document.getElementById("results");
+      if (resultsEl) {
+        resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 60);
+
+    // If routine is already in memory (uploaded file or sample), provide a brief, futuristic scan pause
+    if (!link) {
+      await new Promise((resolve) => setTimeout(resolve, 360));
+    }
 
     // A pasted Drive link takes priority: scan it in the background, then build the table.
     let sourceExams = allExams;
@@ -975,20 +1203,20 @@ export default function Home() {
           window.sessionStorage.setItem("examMate:pendingDriveLink", link);
           window.sessionStorage.setItem(
             "examMate:pendingCourses",
-            effectiveSelectedCodes.join(", ")
+            effectiveSelectedCodes.join(", "),
           );
           if (authSession?.user) {
             await authClient.signOut();
           }
           setGoogleLoading(true);
-          setMessage("Redirecting to Google to connect your varsity email (@seu.edu.bd)… On Google's screen, please check 'Select all' to grant Drive & Calendar access.");
+          setMessage("Connecting Google account");
           await startGoogleSignIn({ requireDrive: true });
           return;
         } catch (signInErr) {
           setError(
             signInErr instanceof Error
               ? signInErr.message
-              : "Could not start Google connection. Please connect your varsity email (@seu.edu.bd) in the navbar."
+              : "Sign-in failed. Please connect Google from navbar.",
           );
           setGenerating(false);
           setGoogleLoading(false);
@@ -1004,7 +1232,7 @@ export default function Home() {
         setError(
           driveError instanceof Error
             ? driveError.message
-            : "Could not read this Google Drive link."
+            : "Could not read Google Drive link.",
         );
         setGenerating(false);
         return;
@@ -1015,7 +1243,7 @@ export default function Home() {
     const matchedExams: ParsedExam[] = [];
     for (const exam of sourceExams) {
       const matchedUserCode = effectiveSelectedCodes.find((code) =>
-        coursesMatch(code, exam.courseCode)
+        coursesMatch(code, exam.courseCode),
       );
       if (matchedUserCode) {
         // If the user specified a section (e.g. CSE181.5) but the routine had no section (CSE181),
@@ -1023,7 +1251,9 @@ export default function Home() {
         const userHasSection = /\.\d+$/.test(matchedUserCode);
         const routineHasSection = /\.\d+$/.test(exam.courseCode);
         const finalCourseCode =
-          userHasSection && !routineHasSection ? matchedUserCode : exam.courseCode;
+          userHasSection && !routineHasSection
+            ? matchedUserCode
+            : exam.courseCode;
 
         matchedExams.push({
           ...exam,
@@ -1045,11 +1275,9 @@ export default function Home() {
 
     const matches = sortExams(uniqueMatches);
     const unmatched = effectiveSelectedCodes.filter(
-      (code) => !sourceExams.some((exam) => coursesMatch(code, exam.courseCode))
+      (code) =>
+        !sourceExams.some((exam) => coursesMatch(code, exam.courseCode)),
     );
-
-    setGeneratedExams(matches);
-    persistRoutine(matches);
 
     // In both sample and real routine generation, clear the input boxes
     setFileName("");
@@ -1063,79 +1291,125 @@ export default function Home() {
     }
 
     if (!matches.length) {
-      setError(`No matches found for: ${unmatched.join(", ")} in routine.`);
+      setError(`No matches found for: ${unmatched.join(", ")}.`);
       setGenerating(false);
+      setVisibleRowCount(0);
+      setIsRevealingRows(false);
       return;
     }
 
-    if (isSampleRoutine) {
-      routineSourceRef.current = "sample";
-      setShowCalendarSyncPrompt(false);
-      setMessage(
-        `${matches.length} exam${matches.length > 0 ? "s" : ""} generated! (Sample preview — not linked to Google)`
-      );
-    } else if (link) {
-      routineSourceRef.current = "drive";
-      try {
-        window.sessionStorage.setItem("examMate:routineSource", "drive");
-      } catch {
-        // ignore
-      }
-      let calendarAlreadyGranted = false;
-      try {
-        const statusRes = await fetch("/api/calendar/sync");
-        if (statusRes.ok) {
-          const statusData = (await statusRes.json()) as { hasCalendarScope?: boolean };
-          calendarAlreadyGranted = Boolean(statusData.hasCalendarScope);
-        }
-      } catch {
-        // ignore
-      }
-
-      setHasCalendarScope(calendarAlreadyGranted);
-      if (calendarAlreadyGranted) {
-        setShowCalendarSyncPrompt(false);
-        void syncCalendar(matches);
-      } else {
-        setShowCalendarSyncPrompt(true);
-        setMessage(
-          `${matches.length} exam${matches.length > 0 ? "s" : ""} generated! ${
-            unmatched.length ? `Unmatched: ${unmatched.join(", ")}.` : ""
-          }`
-        );
-      }
-    } else {
-      routineSourceRef.current = "excel";
-      setShowCalendarSyncPrompt(false);
-      setMessage(
-        `${matches.length} exam${matches.length > 0 ? "s" : ""} generated! ${
-          unmatched.length ? `Unmatched: ${unmatched.join(", ")}.` : ""
-        }`
-      );
+    if (rowRevealIntervalRef.current) {
+      clearInterval(rowRevealIntervalRef.current);
+      rowRevealIntervalRef.current = null;
     }
+
+    setGeneratedExams(matches);
+    persistRoutine(matches);
     setGenerating(false);
 
-    // Scroll to results table section
+    // Initial first row is revealed immediately
+    setVisibleRowCount(1);
+    setIsRevealingRows(matches.length > 1);
+
+    // Ensure smoothly scrolled to table section
     window.setTimeout(() => {
       const resultsElement = document.getElementById("results");
       if (resultsElement) {
         resultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-    }, 100);
+    }, 60);
+
+    const finishRoutineGeneration = () => {
+      setIsRevealingRows(false);
+      if (isSampleRoutine) {
+        routineSourceRef.current = "sample";
+        setShowCalendarSyncPrompt(false);
+        setMessage(
+          `${matches.length} exam${matches.length === 1 ? "" : "s"} generated (Sample Preview).`,
+        );
+      } else if (link) {
+        routineSourceRef.current = "drive";
+        try {
+          window.sessionStorage.setItem("examMate:routineSource", "drive");
+        } catch {
+          // ignore
+        }
+        setShowCalendarSyncPrompt(false);
+        setIsSyncPromptClosing(false);
+        if (syncPromptTimeoutRef.current) {
+          clearTimeout(syncPromptTimeoutRef.current);
+        }
+        syncPromptTimeoutRef.current = setTimeout(() => {
+          setShowCalendarSyncPrompt(true);
+          setIsSyncPromptClosing(false);
+        }, 1200);
+        setMessage(
+          `${matches.length} exam${matches.length === 1 ? "" : "s"} generated.${
+            unmatched.length ? ` Unmatched: ${unmatched.join(", ")}.` : ""
+          }`,
+        );
+      } else {
+        routineSourceRef.current = "excel";
+        setShowCalendarSyncPrompt(false);
+        setIsSyncPromptClosing(false);
+        setMessage(
+          `${matches.length} exam${matches.length === 1 ? "" : "s"} generated.${
+            unmatched.length ? ` Unmatched: ${unmatched.join(", ")}.` : ""
+          }`,
+        );
+
+        // Auto-sync with connected Google Calendar if user is already connected
+        if (authSession?.user) {
+          window.setTimeout(() => {
+            void syncCalendar(matches);
+          }, 500);
+        }
+      }
+    };
+
+    if (matches.length > 1) {
+      const stepInterval =
+        matches.length <= 4
+          ? 220
+          : matches.length <= 8
+            ? 180
+            : Math.max(90, Math.floor(1600 / matches.length));
+
+      let currentRow = 1;
+      rowRevealIntervalRef.current = setInterval(() => {
+        currentRow += 1;
+        setVisibleRowCount(currentRow);
+
+        if (currentRow >= matches.length) {
+          if (rowRevealIntervalRef.current) {
+            clearInterval(rowRevealIntervalRef.current);
+            rowRevealIntervalRef.current = null;
+          }
+          finishRoutineGeneration();
+        }
+      }, stepInterval);
+    } else {
+      finishRoutineGeneration();
+    }
   }
 
   function handleLoadSample() {
     if (generatedExams.length > 0) {
-      setError(
-        "An exam routine table is already generated. Click 'Clear My Data' below to reset before trying a sample routine."
-      );
+      setError("Routine table active. Click 'Clear My Data' to reset.");
       return;
     }
     routineSourceRef.current = "sample";
     lastCalendarSyncRef.current = "";
+    if (syncPromptTimeoutRef.current) {
+      clearTimeout(syncPromptTimeoutRef.current);
+      syncPromptTimeoutRef.current = null;
+    }
+    setIsSyncPromptClosing(false);
     setShowCalendarSyncPrompt(false);
     setIsSampleRoutine(true);
     setGeneratedExams([]);
+    setVisibleRowCount(0);
+    setIsRevealingRows(false);
     try {
       window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
     } catch {
@@ -1148,15 +1422,32 @@ export default function Home() {
     setCourseInput("CSE101.1, CSE181.5, MAT101.2");
     setCourseDraft("");
     setError("");
-    setMessage("Sample routine loaded. Click Generate to build your table.");
+    setMessage("Sample routine loaded.");
   }
 
   function clearSavedRoutine() {
+    const hasStoredRoutine =
+      typeof window !== "undefined" &&
+      Boolean(window.localStorage.getItem(ROUTINE_STORAGE_KEY));
+    if (!hasDataToClear && !hasStoredRoutine) {
+      return;
+    }
+
     lastCalendarSyncRef.current = "";
+    if (syncPromptTimeoutRef.current) {
+      clearTimeout(syncPromptTimeoutRef.current);
+      syncPromptTimeoutRef.current = null;
+    }
+    if (rowRevealIntervalRef.current) {
+      clearInterval(rowRevealIntervalRef.current);
+      rowRevealIntervalRef.current = null;
+    }
+    setIsSyncPromptClosing(false);
     setShowCalendarSyncPrompt(false);
-    setHasCalendarScope(false);
     setIsSampleRoutine(false);
     setGeneratedExams([]);
+    setVisibleRowCount(0);
+    setIsRevealingRows(false);
     setCourseInput("");
     setCourseDraft("");
     setFileName("");
@@ -1171,19 +1462,29 @@ export default function Home() {
       // ignore
     }
     setSavedNotice("");
-    setMessage("Cleared your local exam routine data.");
+    setMessage("Routine data cleared.");
   }
 
   async function handleGoogleConnect() {
     if (isSampleRoutine) {
-      setError("Google connection is disabled for sample routines. Please upload your routine or paste a Drive link to sync.");
+      setError("Google sync is disabled for sample routines.");
+      return;
+    }
+    if (!isRealRoutineGenerated && !isLinkActive) {
+      setError("Please generate a routine before connecting Google.");
       return;
     }
     if (driveLink.trim()) {
       try {
-        window.sessionStorage.setItem("examMate:pendingDriveLink", driveLink.trim());
+        window.sessionStorage.setItem(
+          "examMate:pendingDriveLink",
+          driveLink.trim(),
+        );
         if (selectedCourseCodes.length) {
-          window.sessionStorage.setItem("examMate:pendingCourses", selectedCourseCodes.join(", "));
+          window.sessionStorage.setItem(
+            "examMate:pendingCourses",
+            selectedCourseCodes.join(", "),
+          );
         }
       } catch {
         // ignore
@@ -1197,10 +1498,12 @@ export default function Home() {
     setGoogleLoading(true);
     setError("");
     try {
-      const requireDrive = Boolean(isLinkActive || routineSourceRef.current === "drive");
+      const requireDrive = Boolean(
+        isLinkActive || routineSourceRef.current === "drive",
+      );
       const result = await startGoogleSignIn({ requireDrive });
       if (result?.error) {
-        throw new Error(result.error.message || "Google sign-in could not start.");
+        throw new Error(result.error.message || "Google sign-in failed.");
       }
       if (generatedExams.length > 0) {
         window.setTimeout(() => {
@@ -1214,7 +1517,7 @@ export default function Home() {
       setError(
         connectError instanceof Error
           ? connectError.message
-          : "Google sign-in could not start."
+          : "Google sign-in failed.",
       );
     } finally {
       setGoogleLoading(false);
@@ -1225,23 +1528,33 @@ export default function Home() {
     setGoogleLoading(true);
     setError("");
     try {
-      const disconnectResponse = await fetch("/api/calendar/disconnect", { method: "POST" });
+      const disconnectResponse = await fetch("/api/calendar/disconnect", {
+        method: "POST",
+      });
       const disconnectText = await disconnectResponse.text();
       let disconnectResult: { disconnected?: boolean; error?: string };
       try {
-        disconnectResult = JSON.parse(disconnectText) as { disconnected?: boolean; error?: string };
+        disconnectResult = JSON.parse(disconnectText) as {
+          disconnected?: boolean;
+          error?: string;
+        };
       } catch {
-        throw new Error("Google disconnect failed because the server returned an invalid response.");
+        throw new Error("Google disconnect failed. Invalid server response.");
       }
       if (!disconnectResponse.ok) {
-        throw new Error(disconnectResult.error || "Google disconnect could not be completed.");
+        throw new Error(disconnectResult.error || "Google disconnect failed.");
       }
       const result = await authClient.signOut();
-      if (result?.error) throw new Error(result.error.message || "Google disconnect could not be completed.");
+      if (result?.error)
+        throw new Error(result.error.message || "Google disconnect failed.");
       lastCalendarSyncRef.current = "";
-      setMessage("Google disconnected. Exams already synced remain in your Google Calendar.");
+      setMessage("Google disconnected. Calendar events kept.");
     } catch (disconnectError) {
-      setError(disconnectError instanceof Error ? disconnectError.message : "Google disconnect could not be completed.");
+      setError(
+        disconnectError instanceof Error
+          ? disconnectError.message
+          : "Google disconnect failed.",
+      );
     } finally {
       setGoogleLoading(false);
     }
@@ -1278,16 +1591,7 @@ export default function Home() {
     ]);
 
     autoTable(doc, {
-      head: [
-        [
-          "Date",
-          "Day",
-          "Time",
-          "Course",
-          "Course Title",
-          "Faculty",
-        ],
-      ],
+      head: [["Date", "Day", "Time", "Course", "Course Title", "Faculty"]],
       body: rows,
       startY: 39,
       styles: {
@@ -1341,7 +1645,7 @@ export default function Home() {
 
   async function exportPdf() {
     if (!generatedExams.length) {
-      setError("Synthesize your exam table first before exporting a PDF.");
+      setError("Generate your routine before exporting PDF.");
       return;
     }
     const doc = await buildPdfDocument();
@@ -1356,7 +1660,8 @@ export default function Home() {
     const rowHeight = 44;
     const footerHeight = 50;
     const tableTop = headerHeight;
-    const totalHeight = headerHeight + (generatedExams.length + 1) * rowHeight + footerHeight;
+    const totalHeight =
+      headerHeight + (generatedExams.length + 1) * rowHeight + footerHeight;
 
     const canvas = document.createElement("canvas");
     canvas.width = width * scale;
@@ -1401,7 +1706,7 @@ export default function Home() {
       { header: "Day", width: tableWidth * 0.12 },
       { header: "Time", width: tableWidth * 0.18 },
       { header: "Course", width: tableWidth * 0.12 },
-      { header: "Course Title", width: tableWidth * 0.30 },
+      { header: "Course Title", width: tableWidth * 0.3 },
       { header: "Faculty", width: tableWidth * 0.16 },
     ];
 
@@ -1446,13 +1751,19 @@ export default function Home() {
         const val = row[c];
         const colDef = columns[c];
 
-        ctx.font = c === 3 ? "bold 12px 'DM Mono', monospace" : "12px 'Inter', sans-serif";
+        ctx.font =
+          c === 3
+            ? "bold 12px 'DM Mono', monospace"
+            : "12px 'Inter', sans-serif";
         ctx.fillStyle = c === 3 ? "#0e7468" : "#263432";
 
         const maxTextWidth = colDef.width - 24;
         let textToDraw = val;
         if (ctx.measureText(textToDraw).width > maxTextWidth) {
-          while (textToDraw.length > 0 && ctx.measureText(textToDraw + "...").width > maxTextWidth) {
+          while (
+            textToDraw.length > 0 &&
+            ctx.measureText(textToDraw + "...").width > maxTextWidth
+          ) {
             textToDraw = textToDraw.slice(0, -1);
           }
           textToDraw += "...";
@@ -1467,7 +1778,12 @@ export default function Home() {
 
     ctx.strokeStyle = "#0e7468";
     ctx.lineWidth = 1.5;
-    ctx.strokeRect(paddingX, tableTop, tableWidth, (rows.length + 1) * rowHeight);
+    ctx.strokeRect(
+      paddingX,
+      tableTop,
+      tableWidth,
+      (rows.length + 1) * rowHeight,
+    );
 
     const footerY = totalHeight - 22;
     ctx.strokeStyle = "#dce8e5";
@@ -1491,7 +1807,7 @@ export default function Home() {
 
   async function exportPng() {
     if (!generatedExams.length) {
-      setError("Synthesize your exam table first before exporting an image.");
+      setError("Generate your routine before exporting PNG.");
       return;
     }
 
@@ -1555,27 +1871,27 @@ export default function Home() {
     {
       question: "Can I use ExamMate without an account?",
       answer:
-        "Yes, absolutely. You can upload an Excel routine file (.xlsx, .xls, .csv), enter your course codes, and synthesize your exam table immediately without signing in or providing any credentials.",
+        "Yes. You can upload your routine file, enter your course codes, and generate your personal exam schedule immediately without signing in or creating an account.",
     },
     {
       question: "How does the Google Drive link import work?",
       answer:
-        "Simply paste your shared Google Drive or Google Sheets link in Option 2. If the link is restricted to Southeast University (@seu.edu.bd) accounts, clicking Generate will prompt a one-click Google Sign-In. ExamMate reads the spreadsheet securely in the background via read-only Google Drive API and builds your routine table automatically.",
+        "Paste your shared Google Drive or Sheets link in Option 2. If the file requires institutional access (@seu.edu.bd), clicking Generate will prompt a secure one-click sign-in to read the routine and build your timetable automatically.",
     },
     {
       question: "Which file formats can I upload?",
       answer:
-        "Excel spreadsheet files (.xlsx, .xls, .xlsm, and .csv) as well as Google Drive share links are fully supported. The parser scans and detects relevant column headers (Course Code, Date, Time, Room, and Faculty) automatically.",
+        "Excel files (.xlsx, .xls, .xlsm, .csv) and Google Drive links are fully supported. The parser automatically detects exam dates, shift times, course codes, titles, and faculty details.",
     },
     {
       question: "What happens to my data and privacy?",
       answer:
-        "Your routine file is processed in memory and never stored on our servers. Your synthesized routine table is saved locally on your device for up to 15 days so you do not have to regenerate it on returning visits. Draft upload fields reset cleanly when you close your browser tab.",
+        "Your routine is processed client-side in your browser and never stored on our servers. Generated schedules are saved locally on your device for 15 days for quick access and automatically expire afterwards.",
     },
     {
       question: "Can I sync my schedule to Google Calendar?",
       answer:
-        "Yes. Connect your Google account to automatically add your exams to your primary Google Calendar with course codes, dates, and times, complete with advance reminders (9:00 AM and 8:00 PM the day before each exam).",
+        "Yes. Connect Google to add all your exams directly to your primary calendar with course details and automatic reminders (at 8:00 PM the evening before and 9:00 AM on exam day).",
     },
   ];
 
@@ -1590,7 +1906,6 @@ export default function Home() {
 
       {/* Main Container */}
       <div className="relative z-10 w-full max-w-[1240px] px-3 pt-3 pb-16 flex flex-col gap-8 sm:px-6 sm:pt-4 sm:pb-20 sm:gap-10 lg:px-8">
-
         {/* NAVBAR */}
         <header className="order-1 z-20 w-full rounded-2xl glass-panel border border-teal-500/30 px-2.5 py-2 sm:px-4 sm:py-2.5 flex items-center justify-between gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           {/* Left: icon.svg logo + ExamMate */}
@@ -1609,1111 +1924,1539 @@ export default function Home() {
 
           {/* Google connection action follows the dark glass and mint page palette. */}
           <div className="group/google relative mr-0.5 shrink-0 sm:mr-1">
-            {!authSession && (
-              <Send
-                aria-hidden="true"
-                className="pointer-events-none absolute -right-1.5 -top-2.5 z-10 h-4 w-4 rotate-[-10deg] fill-[#5EEAD4] text-[#5EEAD4] drop-shadow-[0_0_7px_rgba(94,234,212,0.8)] sm:-right-2 sm:-top-3 sm:h-5 sm:w-5"
-              />
-            )}
+            {!authSession &&
+              !isSampleRoutine &&
+              (isRealRoutineGenerated || isLinkActive) && (
+                <Send
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-1.5 -top-2.5 z-10 h-4 w-4 rotate-[-10deg] fill-[#5EEAD4] text-[#5EEAD4] drop-shadow-[0_0_7px_rgba(94,234,212,0.8)] sm:-right-2 sm:-top-3 sm:h-5 sm:w-5"
+                />
+              )}
             <button
               type="button"
-              onClick={authSession ? handleGoogleDisconnect : handleGoogleConnect}
-              disabled={googleLoading || calendarSyncing || (!authSession && !isRealRoutineGenerated && !isLinkActive)}
+              onClick={
+                authSession ? handleGoogleDisconnect : handleGoogleConnect
+              }
+              disabled={
+                googleLoading ||
+                calendarSyncing ||
+                isSampleRoutine ||
+                (!authSession && !isRealRoutineGenerated && !isLinkActive)
+              }
               aria-label={
                 isSampleRoutine
-                  ? "Sample routine is for preview only and does not link with Google."
+                  ? "Google sync is disabled for sample routines."
                   : authSession
-                  ? "Disconnect Google. Synced events will remain in Google Calendar."
-                  : isRealRoutineGenerated || isLinkActive
-                  ? "Connect Google and sync this routine"
-                  : "Generate a routine before connecting Google"
+                    ? "Disconnect Google. Synced events will remain in Google Calendar."
+                    : isRealRoutineGenerated || isLinkActive
+                      ? "Connect Google and sync this routine"
+                      : "Generate a routine before connecting Google"
               }
               className={`google-connect-button group ${
-                authSession
-                  ? "google-connect-button--connected"
-                  : isRealRoutineGenerated || isLinkActive
-                    ? "google-connect-button--ready google-connect-button--connect"
-                    : "google-connect-button--disabled google-connect-button--connect"
+                isSampleRoutine
+                  ? "google-connect-button--disabled opacity-40 cursor-not-allowed"
+                  : authSession
+                    ? "google-connect-button--connected"
+                    : isRealRoutineGenerated || isLinkActive
+                      ? "google-connect-button--ready google-connect-button--connect"
+                      : "google-connect-button--disabled google-connect-button--connect opacity-50 cursor-not-allowed"
               }`}
             >
               {googleLoading || calendarSyncing ? (
                 <LoaderCircle className="h-5 w-5 animate-spin text-teal-300" />
               ) : (
-                <img src="/google-logo.svg" alt="" aria-hidden="true" width="19" height="19" className="google-connect-logo shrink-0" />
+                <img
+                  src="/google-logo.svg"
+                  alt=""
+                  aria-hidden="true"
+                  width="19"
+                  height="19"
+                  className="google-connect-logo shrink-0"
+                />
               )}
-              {!authSession && <span className="whitespace-nowrap text-[11px] font-medium tracking-wide sm:text-[13px]">Connect Google</span>}
+              {!authSession && (
+                <span className="whitespace-nowrap text-[11px] font-medium tracking-wide sm:text-[13px]">
+                  Connect Google
+                </span>
+              )}
             </button>
-            <span role="tooltip" className="pointer-events-none absolute right-0 top-[calc(100%+1.25rem)] z-50 w-max max-w-[min(18rem,calc(100vw-2rem))] translate-y-1 rounded-lg border border-teal-200/25 bg-[#0b171f]/95 px-3 py-2 text-xs leading-relaxed text-teal-50 opacity-0 shadow-[0_10px_30px_rgba(0,0,0,0.45)] backdrop-blur-xl transition duration-200 group-hover/google:translate-y-0 group-hover/google:opacity-100 group-focus-within/google:translate-y-0 group-focus-within/google:opacity-100">
-              {isSampleRoutine
-                ? authSession
-                  ? `Connected (${authSession.user?.email || "Google"}) — Sample routine is not linked or synced.`
-                  : "Sample routine is for preview only and will not link with Google."
-                : authSession
-                ? `Connected Google (${authSession.user?.email || "Google"}). Click to Disconnect`
-                : isLinkActive
-                  ? "Connect your varsity Google account (@seu.edu.bd) to generate routine from Drive link."
-                  : isRealRoutineGenerated
-                  ? "Connect Google to sync this exam routine and set reminders."
-                  : "Generate your exam routine before connecting Google."}
-            </span>
+            <div
+              role="tooltip"
+              className="pointer-events-none absolute right-0 top-[calc(100%+0.65rem)] z-50 w-max max-w-[min(20rem,calc(100vw-2rem))] translate-y-1 rounded-xl border border-teal-400/35 bg-[#0A1822]/95 px-3.5 py-2 text-xs backdrop-blur-xl opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 group-hover/google:translate-y-0 group-hover/google:opacity-100 group-focus-within/google:translate-y-0 group-focus-within/google:opacity-100"
+            >
+              <div className="flex items-center gap-1.5 font-medium">
+                <span
+                  className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                    isSampleRoutine
+                      ? "bg-slate-400"
+                      : authSession
+                        ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+                        : "bg-teal-400 shadow-[0_0_6px_rgba(94,234,212,0.8)]"
+                  }`}
+                />
+                <span className="truncate max-w-[17rem] text-teal-100 font-semibold tracking-tight">
+                  {isSampleRoutine
+                    ? "Sample Preview Mode"
+                    : authSession
+                      ? authSession.user?.email || "Google Connected"
+                      : isLinkActive
+                        ? "Varsity Google Account"
+                        : isRealRoutineGenerated
+                          ? "Google Calendar Sync"
+                          : "Connect Google"}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] leading-snug text-teal-200/70">
+                {isSampleRoutine
+                  ? "Google sync is disabled for sample routines."
+                  : authSession
+                    ? "Click to disconnect account."
+                    : isLinkActive
+                      ? "Connect @seu.edu.bd to read Drive routine."
+                      : isRealRoutineGenerated
+                        ? "Connect to sync exams and set reminders."
+                        : "Generate routine to enable calendar sync."}
+              </p>
+              <div className="absolute -top-1 right-5 w-2 h-2 rotate-45 border-l border-t border-teal-400/35 bg-[#0A1822]" />
+            </div>
           </div>
         </header>
 
         <main id="main-content" className="contents">
-        {/* HERO SECTION */}
-        <LazySection className="order-2 relative w-full pt-2 lg:pt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start" minHeight="460px">
-          {/* Left Side: Headline, Subheadline, Buttons */}
-          <div className="lg:col-span-7 flex flex-col items-start gap-5">
-            <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black uppercase tracking-tight text-white leading-[1.08]">
-              BUILD YOUR EXAM<br />
-              TABLE <span className="text-neon-mint">IN MINUTES</span>
-            </h1>
+          {/* HERO SECTION */}
+          <LazySection
+            className="order-2 relative w-full pt-2 lg:pt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start"
+            minHeight="460px"
+          >
+            {/* Left Side: Headline, Subheadline, Buttons */}
+            <div className="lg:col-span-7 flex flex-col items-start gap-5">
+              <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black uppercase tracking-tight text-white leading-[1.08]">
+                BUILD YOUR EXAM
+                <br />
+                TABLE <span className="text-neon-mint">IN MINUTES</span>
+              </h1>
 
-            <p className="text-sm sm:text-base text-[#94A3B8] max-w-lg leading-relaxed font-normal">
-              Turn your university exam routine into a clear, personal schedule. Upload a file,
-              add your course codes, and you’re ready to go.
-            </p>
+              <p className="text-sm sm:text-base text-[#94A3B8] max-w-lg leading-relaxed font-normal">
+                Find your exact exam dates and times from the official
+                university routine. Export a clean schedule or sync with Google
+                Calendar in seconds.
+              </p>
 
-            {/* Action buttons */}
-            <div className="flex flex-wrap items-center gap-3 pt-2">
-              <a
-                href="#generator"
-                className="btn-neon-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider"
-              >
-                <span>Generate routine</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </a>
-
-            </div>
-          </div>
-
-          {/* Right Side: isometric schedule preview */}
-          <div className="lg:col-span-5 flex flex-col items-center justify-center gap-6 relative">
-            {/* 3D Isometric Scene */}
-            <div className="iso-scene relative w-full max-w-[380px] h-[210px] flex items-center justify-center">
-              {/* Lower ambient glow plate */}
-              <div className="iso-card-shadow absolute w-[260px] h-[150px] rounded-2xl bg-teal-500/20 border border-teal-400/40 shadow-[0_0_40px_rgba(94,234,212,0.3)] pointer-events-none" />
-
-              {/* Secondary floating glass card */}
-              <div className="iso-card-sub absolute top-1 left-2 w-[160px] p-2.5 rounded-xl glass-panel border border-teal-400/40 shadow-2xl z-20">
-                <div className="flex items-center justify-between text-[8px] font-mono-code text-teal-300 pb-1.5 border-b border-teal-500/20">
-                  <span>MATCHING COURSES</span>
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#5EEAD4] led-pulse" />
-                </div>
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  <span className="text-[7px] px-1 py-0.5 rounded bg-emerald-500/30 text-emerald-200 border border-emerald-400/30">
-                    CSE101
-                  </span>
-                  <span className="text-[7px] px-1 py-0.5 rounded bg-pink-500/30 text-pink-200 border border-pink-400/30">
-                    MAT101
-                  </span>
-                  <span className="text-[7px] px-1 py-0.5 rounded bg-cyan-500/30 text-cyan-200 border border-cyan-400/30">
-                    CSE102
-                  </span>
-                </div>
-              </div>
-
-              {/* Main 3D Floating Tablet */}
-              <div className="iso-card-main relative w-[290px] h-[175px] rounded-2xl glass-panel border border-teal-400/60 p-3 shadow-[0_25px_50px_rgba(0,0,0,0.8)] z-10 overflow-hidden">
-                {/* Top bar */}
-                <div className="flex items-center justify-between pb-2 border-b border-teal-500/30 text-[9px] font-mono-code text-teal-300">
-                  <div className="flex items-center gap-1.5">
-                    <span className="w-2 h-2 rounded-full bg-[#5EEAD4]" />
-                    <span>EXAM SCHEDULE</span>
-                  </div>
-                  <span className="text-[8px] text-teal-400/80">FALL SEMESTER</span>
-                </div>
-
-                {/* Inner Calendar Grid */}
-                <div className="grid grid-cols-4 gap-1.5 mt-2.5">
-                  <div className="h-9 rounded-md bg-emerald-500/20 border border-emerald-400/40 p-1 flex flex-col justify-between">
-                    <span className="text-[6px] text-emerald-300">10:00 AM</span>
-                    <span className="text-[8px] font-bold text-white">CSE101</span>
-                  </div>
-                  <div className="h-9 rounded-md bg-pink-500/20 border border-pink-400/40 p-1 flex flex-col justify-between">
-                    <span className="text-[6px] text-pink-300">02:00 PM</span>
-                    <span className="text-[8px] font-bold text-white">MAT101</span>
-                  </div>
-                  <div className="h-9 rounded-md bg-purple-500/20 border border-purple-400/40 p-1 flex flex-col justify-between">
-                    <span className="text-[6px] text-purple-300">10:00 AM</span>
-                    <span className="text-[8px] font-bold text-white">CSE102</span>
-                  </div>
-                  <div className="h-9 rounded-md bg-teal-500/20 border border-teal-400/40 p-1 flex flex-col justify-between">
-                    <span className="text-[6px] text-teal-300">02:00 PM</span>
-                    <span className="text-[8px] font-bold text-white">PHY101</span>
-                  </div>
-
-                  <div className="h-9 rounded-md bg-teal-900/30 border border-teal-500/20 p-1" />
-                  <div className="h-9 rounded-md bg-emerald-500/30 border border-emerald-400/50 p-1 flex flex-col justify-between">
-                    <span className="text-[6px] text-emerald-300">10:00 AM</span>
-                    <span className="text-[8px] font-bold text-white">ENG101</span>
-                  </div>
-                  <div className="h-9 rounded-md bg-teal-900/30 border border-teal-500/20 p-1" />
-                  <div className="h-9 rounded-md bg-purple-500/20 border border-purple-400/40 p-1 flex flex-col justify-between">
-                    <span className="text-[6px] text-purple-300">02:00 PM</span>
-                    <span className="text-[8px] font-bold text-white">GED101</span>
-                  </div>
-                </div>
+              {/* Action buttons */}
+              <div className="flex flex-wrap items-center gap-3 pt-2">
+                <a
+                  href="#generator"
+                  className="btn-neon-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider"
+                >
+                  <span>Generate routine</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </a>
               </div>
             </div>
 
-          </div>
-        </LazySection>
+            {/* Right Side: isometric schedule preview */}
+            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-6 relative">
+              {/* 3D Isometric Scene */}
+              <div className="iso-scene relative w-full max-w-[380px] h-[210px] flex items-center justify-center">
+                {/* Lower ambient glow plate */}
+                <div className="iso-card-shadow absolute w-[260px] h-[150px] rounded-2xl bg-teal-500/20 border border-teal-400/40 shadow-[0_0_40px_rgba(94,234,212,0.3)] pointer-events-none" />
 
-        {/* MAIN DASHBOARD */}
-        <LazySection id="generator" className="order-4 w-full pt-6" minHeight="620px">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
-            {/* Left part of container */}
-            <div className="lg:col-span-8 glass-panel glass-panel--static rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
-              {/* Header */}
-              <div className="flex items-center justify-between border-b border-teal-500/20 pb-3">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono-code text-xs text-teal-300">01 /</span>
-                  <h2 className="text-base sm:text-lg font-semibold text-white">
-                    Upload routine and create your personal exam table
-                  </h2>
-                </div>
-                {allExams.length > 0 && (
-                  <span className="text-[10px] font-mono-code text-teal-400/70">
-                    {allExams.length} EXAMS SYNTHESIZED
-                  </span>
-                )}
-              </div>
-
-              {/* Upload Zone & Course Codes section */}
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
-                {/* OPTION 1: Drag-and-drop file upload zone */}
-                <div className="sm:col-span-12 relative flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold">
-                      OPTION 1: UPLOAD EXCEL FILE
+                {/* Secondary floating glass card */}
+                <div className="iso-card-sub absolute top-1 left-2 w-[160px] p-2.5 rounded-xl glass-panel border border-teal-400/40 shadow-2xl z-20">
+                  <div className="flex items-center justify-between text-[8px] font-mono-code text-teal-300 pb-1.5 border-b border-teal-500/20">
+                    <span>MATCHING COURSES</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-[#5EEAD4] led-pulse" />
+                  </div>
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    <span className="text-[7px] px-1 py-0.5 rounded bg-emerald-500/30 text-emerald-200 border border-emerald-400/30">
+                      CSE101
+                    </span>
+                    <span className="text-[7px] px-1 py-0.5 rounded bg-pink-500/30 text-pink-200 border border-pink-400/30">
+                      MAT101
+                    </span>
+                    <span className="text-[7px] px-1 py-0.5 rounded bg-cyan-500/30 text-cyan-200 border border-cyan-400/30">
+                      CSE102
                     </span>
                   </div>
+                </div>
 
-                  <label
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (!isUploadDisabled) setIsDragOver(true);
-                    }}
-                    onDragLeave={() => setIsDragOver(false)}
-                    onDrop={(e) => {
-                      if (isRealRoutineGenerated) {
-                        e.preventDefault();
-                        setError(
-                          "An exam routine table is already generated. Click 'Clear My Data' below to reset and upload a new file."
-                        );
-                        return;
-                      }
-                      if (isUploadDisabled) return;
-                      handleDrop(e);
-                    }}
-                    onContextMenu={(e) => e.preventDefault()}
-                    className={`relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-dashed text-center transition-all ${
-                      isUploadDisabled
-                        ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
-                        : isDragOver
-                        ? "border-emerald-400 bg-emerald-950/40 cursor-pointer"
-                        : "border-teal-400/50 bg-teal-950/25 cursor-pointer hover:border-teal-300"
-                    }`}
-                  >
-                    <input
-                      type="file"
-                      accept=".xlsx,.xls,.xlsm,.csv"
-                      onChange={handleFileChange}
-                      ref={inputRef}
-                      disabled={isUploadDisabled}
-                      className="sr-only"
-                    />
-                    <div className="w-10 h-10 rounded-full bg-teal-500/15 border border-teal-400/40 flex items-center justify-center text-[#5EEAD4] shadow-[0_0_15px_rgba(94,234,212,0.25)]">
-                      {uploading && !isLinkActive ? (
-                        <LoaderCircle className="w-5 h-5 animate-spin" />
-                      ) : (
-                        <Upload className="w-5 h-5" />
-                      )}
+                {/* Main 3D Floating Tablet */}
+                <div className="iso-card-main relative w-[290px] h-[175px] rounded-2xl glass-panel border border-teal-400/60 p-3 shadow-[0_25px_50px_rgba(0,0,0,0.8)] z-10 overflow-hidden">
+                  {/* Top bar */}
+                  <div className="flex items-center justify-between pb-2 border-b border-teal-500/30 text-[9px] font-mono-code text-teal-300">
+                    <div className="flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-[#5EEAD4]" />
+                      <span>EXAM SCHEDULE</span>
                     </div>
-                    <span className={`text-xs font-semibold text-white px-2 ${isFileUploaded ? "max-w-[320px] truncate" : "max-w-none text-center"}`}>
-                      {isRealRoutineGenerated
-                        ? "Upload disabled (routine table generated) — clear data to upload"
-                        : isLinkActive
-                        ? "Upload disabled (Drive link is active below)"
-                        : isFileUploaded
-                        ? fileName
-                        : "Choose an exam routine file (Excel .xlsx / .xls / .csv)"}
+                    <span className="text-[8px] text-teal-400/80">
+                      FALL SEMESTER
                     </span>
-                    {isFileUploaded && !isLinkActive && !isRealRoutineGenerated ? (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          clearUploadedFile();
-                        }}
-                        className="mt-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-rose-500/40 bg-rose-500/15 text-xs font-mono-code text-rose-300 hover:bg-rose-500/25 hover:text-rose-100 transition shadow-sm pointer-events-auto"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" /> Remove file
-                      </button>
-                    ) : (
-                      <span className="mt-1 flex items-center gap-2" aria-hidden="true">
-                        <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-200">
-                          <FileSpreadsheet className="h-3 w-3" /> Excel (.xlsx / .xls / .csv)
-                        </span>
+                  </div>
+
+                  {/* Inner Calendar Grid */}
+                  <div className="grid grid-cols-4 gap-1.5 mt-2.5">
+                    <div className="h-9 rounded-md bg-emerald-500/20 border border-emerald-400/40 p-1 flex flex-col justify-between">
+                      <span className="text-[6px] text-emerald-300">
+                        10:00 AM
                       </span>
-                    )}
-                  </label>
-                  {!isRealRoutineGenerated && isLinkActive ? (
-                    <p className="text-[10px] text-amber-300/80 font-mono-code">
-                      * Upload is disabled because a Drive link is entered. Clear the link below to upload a file instead.
-                    </p>
-                  ) : null}
+                      <span className="text-[8px] font-bold text-white">
+                        CSE101
+                      </span>
+                    </div>
+                    <div className="h-9 rounded-md bg-pink-500/20 border border-pink-400/40 p-1 flex flex-col justify-between">
+                      <span className="text-[6px] text-pink-300">02:00 PM</span>
+                      <span className="text-[8px] font-bold text-white">
+                        MAT101
+                      </span>
+                    </div>
+                    <div className="h-9 rounded-md bg-purple-500/20 border border-purple-400/40 p-1 flex flex-col justify-between">
+                      <span className="text-[6px] text-purple-300">
+                        10:00 AM
+                      </span>
+                      <span className="text-[8px] font-bold text-white">
+                        CSE102
+                      </span>
+                    </div>
+                    <div className="h-9 rounded-md bg-teal-500/20 border border-teal-400/40 p-1 flex flex-col justify-between">
+                      <span className="text-[6px] text-teal-300">02:00 PM</span>
+                      <span className="text-[8px] font-bold text-white">
+                        PHY101
+                      </span>
+                    </div>
+
+                    <div className="h-9 rounded-md bg-teal-900/30 border border-teal-500/20 p-1" />
+                    <div className="h-9 rounded-md bg-emerald-500/30 border border-emerald-400/50 p-1 flex flex-col justify-between">
+                      <span className="text-[6px] text-emerald-300">
+                        10:00 AM
+                      </span>
+                      <span className="text-[8px] font-bold text-white">
+                        ENG101
+                      </span>
+                    </div>
+                    <div className="h-9 rounded-md bg-teal-900/30 border border-teal-500/20 p-1" />
+                    <div className="h-9 rounded-md bg-purple-500/20 border border-purple-400/40 p-1 flex flex-col justify-between">
+                      <span className="text-[6px] text-purple-300">
+                        02:00 PM
+                      </span>
+                      <span className="text-[8px] font-bold text-white">
+                        GED101
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </LazySection>
+
+          {/* MAIN DASHBOARD */}
+          <LazySection
+            id="generator"
+            className="order-4 w-full pt-6"
+            minHeight="620px"
+          >
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+              {/* Left part of container */}
+              <div className="lg:col-span-8 glass-panel glass-panel--static rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+                {/* Header */}
+                <div className="flex items-center justify-between border-b border-teal-500/20 pb-3">
+                  <div className="flex items-center gap-3">
+                    <span className="font-mono-code text-xs text-teal-300">
+                      01 /
+                    </span>
+                    <h2 className="text-base sm:text-lg font-semibold text-white">
+                      Upload routine and create your personal exam table
+                    </h2>
+                  </div>
+                  {allExams.length > 0 && (
+                    <span className="text-[10px] font-mono-code text-teal-400/70">
+                      {allExams.length} EXAMS SYNTHESIZED
+                    </span>
+                  )}
                 </div>
 
-                {/* OPTION 2: Google Drive share-link import */}
-                <div className="sm:col-span-12 flex flex-col gap-1.5">
-                  <div className="flex items-center justify-between">
+                {/* Upload Zone & Course Codes section */}
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+                  {/* OPTION 1: Drag-and-drop file upload zone */}
+                  <div className="sm:col-span-12 relative flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold">
+                        OPTION 1: UPLOAD EXCEL FILE
+                      </span>
+                    </div>
+
                     <label
-                      htmlFor="drive-link"
-                      className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
-                    >
-                      OPTION 2: PASTE GOOGLE DRIVE LINK
-                    </label>
-                  </div>
-                  <div className="relative">
-                    <div
-                      ref={linkBoxRef}
-                      onClick={() => {
-                        if (!isLinkDisabled) {
-                          setShowLinkPopup(true);
-                          const input = document.getElementById("drive-link") as HTMLInputElement | null;
-                          input?.focus();
-                        }
-                      }}
-                      onContextMenu={(e) => {
+                      onDragOver={(e) => {
                         e.preventDefault();
-                        if (!isLinkDisabled) {
-                          setShowLinkPopup(true);
-                          const input = document.getElementById("drive-link") as HTMLInputElement | null;
-                          input?.focus();
-                        }
+                        if (!isUploadDisabled) setIsDragOver(true);
                       }}
-                      className={`relative flex min-h-11 items-center gap-2 rounded-xl border px-3 transition-all duration-200 select-none ${
-                        isLinkDisabled
+                      onDragLeave={() => setIsDragOver(false)}
+                      onDrop={(e) => {
+                        if (isRealRoutineGenerated) {
+                          e.preventDefault();
+                          setError(
+                            "Routine table active. Click 'Clear My Data' to reset.",
+                          );
+                          return;
+                        }
+                        if (isUploadDisabled) return;
+                        handleDrop(e);
+                      }}
+                      onContextMenu={(e) => e.preventDefault()}
+                      className={`group/drop relative flex flex-col items-center justify-center gap-2 p-5 rounded-xl border border-dashed text-center transition-all duration-200 ${
+                        isUploadDisabled
                           ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
-                          : isLinkActive
-                          ? "border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
-                          : "border-teal-400/50 bg-teal-950/25 cursor-pointer hover:border-teal-300 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
+                          : isDragOver
+                            ? "border-emerald-400 bg-emerald-950/40 cursor-pointer shadow-[0_0_24px_rgba(52,211,153,0.25)]"
+                            : "border-teal-400/40 bg-teal-950/20 cursor-pointer hover:border-teal-300/80 hover:bg-teal-950/40 hover:shadow-[0_0_28px_rgba(94,234,212,0.14),inset_0_0_20px_rgba(94,234,212,0.04)]"
                       }`}
                     >
-                      <Link2 className="h-4 w-4 shrink-0 text-teal-300" aria-hidden="true" />
                       <input
-                        id="drive-link"
-                        name="examMateDriveLinkInput"
-                        type="text"
-                        autoComplete="off"
-                        autoCorrect="off"
-                        autoCapitalize="none"
-                        spellCheck={false}
-                        data-lpignore="true"
-                        value={driveLink}
-                        disabled={isLinkDisabled}
-                        onContextMenu={(e) => {
-                          e.preventDefault();
-                          if (!isLinkDisabled) setShowLinkPopup(true);
-                        }}
-                        onClick={() => {
-                          if (!isLinkDisabled) setShowLinkPopup(true);
-                        }}
-                        onFocus={() => {
-                          if (!isLinkDisabled) setShowLinkPopup(true);
-                        }}
-                        onChange={(event) => {
-                          handleDriveInputChange(event.target.value);
-                        }}
-                        onPaste={(event) => {
-                          if (isRealRoutineGenerated) {
-                            event.preventDefault();
-                            setError(
-                              "An exam routine table is already generated. Click 'Clear My Data' below to reset and paste a new link."
-                            );
-                            return;
-                          }
-                          const pasted = event.clipboardData.getData("text");
-                          if (pasted && pasted.trim()) {
-                            handleDriveInputChange(pasted.trim());
-                            addRecentLink(pasted.trim());
-                            setShowLinkPopup(false);
-                          }
-                        }}
-                        onKeyDown={(event) => {
-                          if (event.key === "Escape") {
-                            setShowLinkPopup(false);
-                          } else if (event.key === "Enter") {
-                            event.preventDefault();
-                            setShowLinkPopup(false);
-                            if (hasEnteredCourse) {
-                              void handleGenerate();
-                            }
-                          }
-                        }}
-                        placeholder={
-                          isRealRoutineGenerated
-                            ? "Link disabled (routine table generated)"
-                            : isFileUploaded
-                            ? `Link disabled (${fileName} uploaded)`
-                            : "https://drive.google.com/file/d/…/view"
-                        }
-                        className="w-full border-0 bg-transparent py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                        type="file"
+                        accept=".xlsx,.xls,.xlsm,.csv"
+                        onChange={handleFileChange}
+                        ref={inputRef}
+                        disabled={isUploadDisabled}
+                        className="sr-only"
                       />
-                      {isLinkActive && !isFileUploaded && !isRealRoutineGenerated && (
+                      <div className="w-10 h-10 rounded-full bg-teal-500/10 border border-teal-400/30 flex items-center justify-center text-[#5EEAD4] shadow-[0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 group-hover/drop:border-teal-300 group-hover/drop:bg-teal-500/25 group-hover/drop:shadow-[0_0_22px_rgba(94,234,212,0.35)]">
+                        {uploading && !isLinkActive ? (
+                          <LoaderCircle className="w-5 h-5 animate-spin" />
+                        ) : (
+                          <Upload className="w-5 h-5" />
+                        )}
+                      </div>
+                      <span
+                        className={`text-xs font-semibold text-white px-2 transition-colors duration-200 group-hover/drop:text-teal-100 ${isFileUploaded ? "max-w-[320px] truncate" : "max-w-none text-center"}`}
+                      >
+                        {isRealRoutineGenerated
+                          ? "Upload disabled (routine table generated) — clear data to upload"
+                          : isLinkActive
+                            ? "Upload disabled (Drive link is active below)"
+                            : isFileUploaded
+                              ? fileName
+                              : "Choose an exam routine file (Excel .xlsx / .xls / .csv)"}
+                      </span>
+                      {isFileUploaded &&
+                      !isLinkActive &&
+                      !isRealRoutineGenerated ? (
                         <button
                           type="button"
                           onClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
-                            clearDriveLink();
-                            setShowLinkPopup(false);
+                            clearUploadedFile();
                           }}
-                          aria-label="Clear drive link"
-                          className="rounded-full p-1 text-slate-400 hover:text-white transition"
+                          className="mt-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-rose-500/40 bg-rose-500/15 text-xs font-mono-code text-rose-300 hover:bg-rose-500/25 hover:text-rose-100 transition-colors shadow-sm pointer-events-auto"
                         >
-                          <X className="h-3.5 w-3.5" />
+                          <Trash2 className="h-3.5 w-3.5" /> Remove file
                         </button>
+                      ) : (
+                        <span
+                          className="mt-1 flex items-center gap-2"
+                          aria-hidden="true"
+                        >
+                          <span className="inline-flex items-center gap-1 rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-1 text-[10px] text-emerald-200 transition-colors duration-200 group-hover/drop:border-emerald-400/40">
+                            <FileSpreadsheet className="h-3 w-3" /> Excel (.xlsx
+                            / .xls / .csv)
+                          </span>
+                        </span>
+                      )}
+                    </label>
+                    {!isRealRoutineGenerated && isLinkActive ? (
+                      <p className="text-[10px] text-amber-300/80 font-mono-code">
+                        * Upload is disabled because a Drive link is entered.
+                        Clear the link below to upload a file instead.
+                      </p>
+                    ) : null}
+                  </div>
+
+                  {/* OPTION 2: Google Drive share-link import */}
+                  <div className="sm:col-span-12 flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <label
+                        htmlFor="drive-link"
+                        className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
+                      >
+                        OPTION 2: PASTE GOOGLE DRIVE LINK
+                      </label>
+                    </div>
+                    <div className="relative">
+                      <div
+                        ref={linkBoxRef}
+                        onClick={() => {
+                          if (!isLinkDisabled) {
+                            setShowLinkPopup(true);
+                            const input = document.getElementById(
+                              "drive-link",
+                            ) as HTMLInputElement | null;
+                            input?.focus();
+                          }
+                        }}
+                        onContextMenu={(e) => {
+                          e.preventDefault();
+                          if (!isLinkDisabled) {
+                            setShowLinkPopup(true);
+                            const input = document.getElementById(
+                              "drive-link",
+                            ) as HTMLInputElement | null;
+                            input?.focus();
+                          }
+                        }}
+                        className={`relative flex min-h-11 items-center gap-2 rounded-xl border px-3 transition-all duration-300 select-none ${
+                          isLinkDisabled
+                            ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
+                            : isLinkActive
+                              ? "border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400 focus-within:shadow-[0_0_20px_rgba(94,234,212,0.2)]"
+                              : "border-teal-400/50 bg-teal-950/25 cursor-pointer hover:border-teal-300 hover:bg-teal-950/40 hover:shadow-[0_0_20px_rgba(94,234,212,0.12)] focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400 focus-within:shadow-[0_0_20px_rgba(94,234,212,0.2)]"
+                        }`}
+                      >
+                        <Link2
+                          className="h-4 w-4 shrink-0 text-teal-300"
+                          aria-hidden="true"
+                        />
+                        <input
+                          id="drive-link"
+                          name="examMateDriveLinkInput"
+                          type="text"
+                          autoComplete="off"
+                          autoCorrect="off"
+                          autoCapitalize="none"
+                          spellCheck={false}
+                          data-lpignore="true"
+                          value={driveLink}
+                          disabled={isLinkDisabled}
+                          onContextMenu={(e) => {
+                            e.preventDefault();
+                            if (!isLinkDisabled) setShowLinkPopup(true);
+                          }}
+                          onClick={() => {
+                            if (!isLinkDisabled) setShowLinkPopup(true);
+                          }}
+                          onFocus={() => {
+                            if (!isLinkDisabled) setShowLinkPopup(true);
+                          }}
+                          onChange={(event) => {
+                            handleDriveInputChange(event.target.value);
+                          }}
+                          onPaste={(event) => {
+                            if (isRealRoutineGenerated) {
+                              event.preventDefault();
+                              setError(
+                                "Routine table active. Click 'Clear My Data' to reset.",
+                              );
+                              return;
+                            }
+                            const pasted = event.clipboardData.getData("text");
+                            if (pasted && pasted.trim()) {
+                              handleDriveInputChange(pasted.trim());
+                              addRecentLink(pasted.trim());
+                              setShowLinkPopup(false);
+                            }
+                          }}
+                          onKeyDown={(event) => {
+                            if (event.key === "Escape") {
+                              setShowLinkPopup(false);
+                            } else if (event.key === "Enter") {
+                              event.preventDefault();
+                              setShowLinkPopup(false);
+                              if (hasEnteredCourse) {
+                                void handleGenerate();
+                              }
+                            }
+                          }}
+                          placeholder={
+                            isRealRoutineGenerated
+                              ? "Link disabled (routine table generated)"
+                              : isFileUploaded
+                                ? `Link disabled (${fileName} uploaded)`
+                                : "https://drive.google.com/file/d/…/view"
+                          }
+                          className="w-full border-0 bg-transparent py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                        />
+                        {isLinkActive &&
+                          !isFileUploaded &&
+                          !isRealRoutineGenerated && (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                clearDriveLink();
+                                setShowLinkPopup(false);
+                              }}
+                              aria-label="Clear drive link"
+                              className="rounded-full p-1 text-slate-400 hover:text-white transition"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                      </div>
+
+                      {/* Compact Custom Popup on left click */}
+                      {showLinkPopup && !isLinkDisabled && (
+                        <div
+                          ref={linkPopupRef}
+                          role="dialog"
+                          aria-label="Google Drive link options"
+                          className="absolute left-3 top-[calc(100%+6px)] z-50 w-auto min-w-[200px] max-w-[300px] rounded-lg border border-teal-500/40 bg-[#0B1520]/95 backdrop-blur-md p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.15)] animate-in fade-in zoom-in-95 duration-100"
+                        >
+                          {/* Upward caret arrow */}
+                          <div className="absolute left-5 -top-1.5 h-2.5 w-2.5 rotate-45 border-l border-t border-teal-500/40 bg-[#0B1520]" />
+
+                          {/* Compact Paste from Clipboard Button */}
+                          <button
+                            type="button"
+                            onClick={() => void handlePasteFromClipboard()}
+                            className="flex w-full items-center justify-between gap-2.5 rounded-md bg-teal-500/15 px-2.5 py-1.5 text-xs font-medium text-teal-200 transition hover:bg-teal-500/25 border border-teal-500/30"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <ClipboardPaste className="h-3.5 w-3.5 text-teal-300 shrink-0" />
+                              <span>Paste from clipboard</span>
+                            </div>
+                            <span className="font-mono-code text-[9px] text-teal-400/70">
+                              Ctrl+V
+                            </span>
+                          </button>
+
+                          {/* Recent Links (compact) */}
+                          {recentLinks.length > 0 && (
+                            <div className="mt-1 flex flex-col gap-0.5 border-t border-teal-500/15 pt-1">
+                              <div className="flex items-center justify-between px-1 text-[9px] font-mono-code text-teal-400/70">
+                                <span>RECENT</span>
+                                <button
+                                  type="button"
+                                  onClick={clearAllRecentLinks}
+                                  className="hover:text-rose-400 transition"
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                              {recentLinks.slice(0, 1).map((link) => (
+                                <div
+                                  key={link}
+                                  className="group flex items-center justify-between gap-1 px-1.5 py-0.5 rounded text-[11px] hover:bg-teal-500/15 transition cursor-pointer"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      handleDriveInputChange(link);
+                                      setShowLinkPopup(false);
+                                    }}
+                                    className="truncate font-mono-code text-[10px] text-teal-100 hover:text-white text-left flex-1"
+                                  >
+                                    {link}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      removeRecentLink(link);
+                                    }}
+                                    aria-label="Remove"
+                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5"
+                                  >
+                                    <X className="h-2.5 w-2.5" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 
-                    {/* Compact Custom Popup on left click */}
-                    {showLinkPopup && !isLinkDisabled && (
-                      <div
-                        ref={linkPopupRef}
-                        role="dialog"
-                        aria-label="Google Drive link options"
-                        className="absolute left-3 top-[calc(100%+6px)] z-50 w-auto min-w-[200px] max-w-[300px] rounded-lg border border-teal-500/40 bg-[#0B1520]/95 backdrop-blur-md p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.15)] animate-in fade-in zoom-in-95 duration-100"
-                      >
-                        {/* Upward caret arrow */}
-                        <div className="absolute left-5 -top-1.5 h-2.5 w-2.5 rotate-45 border-l border-t border-teal-500/40 bg-[#0B1520]" />
-
-                        {/* Compact Paste from Clipboard Button */}
-                        <button
-                          type="button"
-                          onClick={() => void handlePasteFromClipboard()}
-                          className="flex w-full items-center justify-between gap-2.5 rounded-md bg-teal-500/15 px-2.5 py-1.5 text-xs font-medium text-teal-200 transition hover:bg-teal-500/25 border border-teal-500/30"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <ClipboardPaste className="h-3.5 w-3.5 text-teal-300 shrink-0" />
-                            <span>Paste from clipboard</span>
-                          </div>
-                          <span className="font-mono-code text-[9px] text-teal-400/70">Ctrl+V</span>
-                        </button>
-
-                        {/* Recent Links (compact) */}
-                        {recentLinks.length > 0 && (
-                          <div className="mt-1 flex flex-col gap-0.5 border-t border-teal-500/15 pt-1">
-                            <div className="flex items-center justify-between px-1 text-[9px] font-mono-code text-teal-400/70">
-                              <span>RECENT</span>
-                              <button
-                                type="button"
-                                onClick={clearAllRecentLinks}
-                                className="hover:text-rose-400 transition"
-                              >
-                                Clear
-                              </button>
-                            </div>
-                            {recentLinks.slice(0, 1).map((link) => (
-                              <div
-                                key={link}
-                                className="group flex items-center justify-between gap-1 px-1.5 py-0.5 rounded text-[11px] hover:bg-teal-500/15 transition cursor-pointer"
-                              >
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    handleDriveInputChange(link);
-                                    setShowLinkPopup(false);
-                                  }}
-                                  className="truncate font-mono-code text-[10px] text-teal-100 hover:text-white text-left flex-1"
-                                >
-                                  {link}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeRecentLink(link);
-                                  }}
-                                  aria-label="Remove"
-                                  className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5"
-                                >
-                                  <X className="h-2.5 w-2.5" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                    {isRealRoutineGenerated ? null : isFileUploaded ? (
+                      <p className="text-[10px] text-amber-300/80 font-mono-code">
+                        * Drive link is disabled because an Excel file is
+                        already uploaded ({fileName}). Click &quot;Remove
+                        file&quot; above to use a link instead.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] text-[#94A3B8]">
+                        Paste link, enter course codes, then press Generate.
+                      </p>
                     )}
                   </div>
 
-                  {isRealRoutineGenerated ? null : isFileUploaded ? (
-                    <p className="text-[10px] text-amber-300/80 font-mono-code">
-                      * Drive link is disabled because an Excel file is already uploaded ({fileName}). Click &quot;Remove file&quot; above to use a link instead.
+                  <div className="sm:col-span-12 flex justify-center text-xs text-slate-400">
+                    Need a quick preview?{" "}
+                    <button
+                      type="button"
+                      onClick={handleLoadSample}
+                      disabled={generatedExams.length > 0}
+                      className={`ml-1 font-medium transition-colors duration-200 ${
+                        generatedExams.length > 0
+                          ? "text-slate-600 cursor-not-allowed no-underline opacity-50"
+                          : "text-teal-300 underline decoration-teal-300/40 underline-offset-4 hover:text-teal-100 hover:decoration-teal-200 cursor-pointer"
+                      }`}
+                    >
+                      Try a sample routine
+                    </button>
+                  </div>
+                </div>
+
+                {/* Removable course-code chips and entry field */}
+                <div
+                  className={`flex flex-col gap-1.5 ${isCourseInputDisabled ? "cursor-not-allowed" : ""}`}
+                >
+                  <label
+                    htmlFor="course-codes"
+                    className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
+                  >
+                    COURSE CODES
+                  </label>
+                  <div
+                    onContextMenu={(e) => e.preventDefault()}
+                    className={`flex min-h-12 flex-wrap items-center gap-2 rounded-xl border px-3 py-2 transition-all duration-200 ${
+                      isCourseInputDisabled
+                        ? "opacity-40 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
+                        : "glass-card border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400 focus-within:shadow-[0_0_20px_rgba(94,234,212,0.2)]"
+                    }`}
+                  >
+                    {selectedCourseCodes.map((code) => (
+                      <span
+                        key={code}
+                        className="inline-flex items-center gap-1 rounded-full border border-teal-500/35 bg-teal-500/15 px-2.5 py-1 font-mono-code text-[11px] text-teal-200 transition-colors duration-200 hover:border-teal-400/60 hover:bg-teal-500/25"
+                      >
+                        {code}
+                        {!isCourseInputDisabled && (
+                          <button
+                            type="button"
+                            onClick={() => removeCourseCode(code)}
+                            aria-label={`Remove ${code}`}
+                            className="rounded-full p-0.5 text-teal-200/70 transition-colors duration-150 hover:bg-rose-500/20 hover:text-rose-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-300"
+                          >
+                            <X className="h-3 w-3" aria-hidden="true" />
+                          </button>
+                        )}
+                      </span>
+                    ))}
+                    <input
+                      id="course-codes"
+                      type="text"
+                      onContextMenu={(e) => e.preventDefault()}
+                      disabled={isCourseInputDisabled}
+                      value={courseDraft}
+                      onChange={(event) => {
+                        if (isCourseInputDisabled) return;
+                        const value = event.target.value.toUpperCase();
+                        if (/[\n,]/.test(value)) {
+                          addCourseCodes(value);
+                        } else {
+                          setCourseDraft(value);
+                        }
+                      }}
+                      onKeyDown={(event) => {
+                        if (isCourseInputDisabled) return;
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          const trimmed = courseDraft.trim().toUpperCase();
+                          if (!trimmed || hasIncompleteTrailingDot(trimmed)) {
+                            return;
+                          }
+                          addCourseCodes(`${trimmed},`);
+                        } else if (
+                          event.key === "Backspace" &&
+                          !courseDraft &&
+                          selectedCourseCodes.length
+                        ) {
+                          removeCourseCode(
+                            selectedCourseCodes[
+                              selectedCourseCodes.length - 1
+                            ] ?? "",
+                          );
+                        }
+                      }}
+                      onBlur={() => {
+                        if (isCourseInputDisabled) return;
+                        const trimmed = courseDraft.trim().toUpperCase();
+                        if (trimmed && !hasIncompleteTrailingDot(trimmed)) {
+                          addCourseCodes(`${trimmed},`);
+                        }
+                      }}
+                      placeholder={
+                        isRealRoutineGenerated
+                          ? "Locked (routine table generated) — click Clear My Data"
+                          : !hasRoutineSource
+                            ? "Upload routine file or paste Drive link first…"
+                            : "Add course code (e.g. CSE181.5)…"
+                      }
+                      className="min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                      aria-describedby="course-codes-hint"
+                    />
+                  </div>
+                  {!hasRoutineSource ? (
+                    <p
+                      id="course-codes-hint"
+                      className="text-[11px] text-slate-400"
+                    >
+                      Upload an Excel routine file or paste a Google Drive link
+                      above to unlock course codes.
+                    </p>
+                  ) : hasIncompleteTrailingDot(courseDraft) ? (
+                    <p
+                      id="course-codes-hint"
+                      className="text-[11px] text-amber-300 font-medium flex items-center gap-1"
+                    >
+                      <span>
+                        Dot (.) এর পর সেকশন নাম্বার লিখুন (যেমন .5), তারপর Enter
+                        চাপুন।
+                      </span>
                     </p>
                   ) : (
-                    <p className="text-[11px] text-[#94A3B8]">
-                      Paste link, enter course codes, then press Generate.
+                    <p
+                      id="course-codes-hint"
+                      className="text-[11px] text-[#94A3B8]"
+                    >
+                      Press Enter or use a comma to add each course (e.g.
+                      CSE181.5).
                     </p>
                   )}
                 </div>
 
-                <div className="sm:col-span-12 flex justify-center text-xs text-slate-400">
-                  Need a quick preview?{" "}
-                  <button
-                    type="button"
-                    onClick={handleLoadSample}
-                    disabled={generatedExams.length > 0}
-                    className={`ml-1 font-medium transition ${
-                      generatedExams.length > 0
-                        ? "text-slate-600 cursor-not-allowed no-underline opacity-50"
-                        : "text-teal-300 underline decoration-teal-300/30 underline-offset-4 hover:text-teal-100 cursor-pointer"
-                    }`}
-                  >
-                    Try a sample routine
-                  </button>
-                </div>
-              </div>
-
-              {/* Removable course-code chips and entry field */}
-              <div className={`flex flex-col gap-1.5 ${isCourseInputDisabled ? "cursor-not-allowed" : ""}`}>
-                <label
-                  htmlFor="course-codes"
-                  className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
-                >
-                  COURSE CODES
-                </label>
-                <div
-                  onContextMenu={(e) => e.preventDefault()}
-                  className={`flex min-h-12 flex-wrap items-center gap-2 rounded-xl border px-3 py-2 transition-all ${
-                    isCourseInputDisabled
-                      ? "opacity-40 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
-                      : "glass-card border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
-                  }`}
-                >
-                  {selectedCourseCodes.map((code) => (
-                    <span
-                      key={code}
-                      className="inline-flex items-center gap-1 rounded-full border border-teal-500/30 bg-teal-500/15 px-2.5 py-1 font-mono-code text-[11px] text-teal-200"
+                {/* Glowing "Generate" button and "Clear My Data" ghost button */}
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-4 border-t border-teal-500/15">
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`group/gen relative inline-flex ${isGenerateDisabled ? "cursor-not-allowed" : ""}`}
                     >
-                      {code}
-                      {!isCourseInputDisabled && (
-                        <button
-                          type="button"
-                          onClick={() => removeCourseCode(code)}
-                          aria-label={`Remove ${code}`}
-                          className="rounded-full p-0.5 text-teal-200/70 transition hover:bg-teal-400/20 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-teal-300"
-                        >
-                          <X className="h-3 w-3" aria-hidden="true" />
-                        </button>
-                      )}
-                    </span>
-                  ))}
-                  <input
-                    id="course-codes"
-                    type="text"
-                    onContextMenu={(e) => e.preventDefault()}
-                    disabled={isCourseInputDisabled}
-                    value={courseDraft}
-                    onChange={(event) => {
-                      if (isCourseInputDisabled) return;
-                      const value = event.target.value.toUpperCase();
-                      if (/[\n,]/.test(value)) {
-                        addCourseCodes(value);
-                      } else {
-                        setCourseDraft(value);
-                      }
-                    }}
-                    onKeyDown={(event) => {
-                      if (isCourseInputDisabled) return;
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        const trimmed = courseDraft.trim().toUpperCase();
-                        if (!trimmed || hasIncompleteTrailingDot(trimmed)) {
-                          return;
-                        }
-                        addCourseCodes(`${trimmed},`);
-                      } else if (
-                        event.key === "Backspace" &&
-                        !courseDraft &&
-                        selectedCourseCodes.length
-                      ) {
-                        removeCourseCode(selectedCourseCodes[selectedCourseCodes.length - 1] ?? "");
-                      }
-                    }}
-                    onBlur={() => {
-                      if (isCourseInputDisabled) return;
-                      const trimmed = courseDraft.trim().toUpperCase();
-                      if (trimmed && !hasIncompleteTrailingDot(trimmed)) {
-                        addCourseCodes(`${trimmed},`);
-                      }
-                    }}
-                    placeholder={
-                      isRealRoutineGenerated
-                        ? "Locked (routine table generated) — click Clear My Data"
-                        : !hasRoutineSource
-                        ? "Upload routine file or paste Drive link first…"
-                        : "Add course code (e.g. CSE181.5)…"
-                    }
-                    className="min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
-                    aria-describedby="course-codes-hint"
-                  />
-                </div>
-                {!hasRoutineSource ? (
-                  <p id="course-codes-hint" className="text-[11px] text-slate-400">
-                    Upload an Excel routine file or paste a Google Drive link above to unlock course codes.
-                  </p>
-                ) : hasIncompleteTrailingDot(courseDraft) ? (
-                  <p id="course-codes-hint" className="text-[11px] text-amber-300 font-medium flex items-center gap-1">
-                    <span>Dot (.) এর পর সেকশন নাম্বার লিখুন (যেমন .5), তারপর Enter চাপুন।</span>
-                  </p>
-                ) : (
-                  <p id="course-codes-hint" className="text-[11px] text-[#94A3B8]">
-                    Press Enter or use a comma to add each course (e.g. CSE181.5).
-                  </p>
-                )}
-              </div>
+                      <button
+                        type="button"
+                        onClick={() => void handleGenerate()}
+                        disabled={isGenerateDisabled}
+                        aria-label="Generate personal exam table"
+                        className={`relative overflow-hidden inline-flex items-center gap-2.5 px-7 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+                          generating
+                            ? "bg-gradient-to-r from-[#5EEAD4] via-[#A7F3D0] to-[#5EEAD4] text-[#031A15] shadow-[0_0_35px_rgba(94,234,212,0.7)] ring-2 ring-teal-300 cursor-wait"
+                            : "btn-neon-primary disabled:opacity-40 disabled:pointer-events-none shadow-[0_0_20px_rgba(94,234,212,0.35)]"
+                        }`}
+                      >
+                        {generating && (
+                          /* Shimmer streak passing across button */
+                          <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
+                        )}
+                        {generating ? (
+                          <div className="relative flex items-center justify-center">
+                            <LoaderCircle className="w-4 h-4 animate-spin text-[#031A15] stroke-[3]" />
+                          </div>
+                        ) : (
+                          <Sparkles className="w-4 h-4 text-[#041B16]" />
+                        )}
+                        <span className="font-extrabold tracking-wider">
+                          {generating
+                            ? driveLink.trim()
+                              ? "Reading Drive…"
+                              : "Building Table…"
+                            : "Generate"}
+                        </span>
+                      </button>
 
-              {/* Glowing "Generate" button and "Clear My Data" ghost button */}
-              <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-4 border-t border-teal-500/15">
-                <div className="flex items-center gap-3">
-                  <div className={`group/gen relative inline-flex ${isGenerateDisabled ? "cursor-not-allowed" : ""}`}>
+                      {/* Custom Glassmorphic Tooltip */}
+                      {generateDisabledReason && (
+                        <div
+                          role="tooltip"
+                          className="pointer-events-none absolute bottom-[calc(100%+0.65rem)] left-0 z-50 w-max max-w-[min(22rem,calc(100vw-2.5rem))] translate-y-1 rounded-xl border border-teal-400/35 bg-[#0A1822]/95 backdrop-blur-xl px-3.5 py-1.5 text-xs font-medium text-teal-100 opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 group-hover/gen:translate-y-0 group-hover/gen:opacity-100"
+                        >
+                          <div className="flex items-center gap-1.5 whitespace-normal sm:whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0 shadow-[0_0_6px_rgba(94,234,212,0.8)]" />
+                            <span>{generateDisabledReason}</span>
+                          </div>
+                          <div className="absolute -bottom-1 left-7 w-2 h-2 rotate-45 border-r border-b border-teal-400/35 bg-[#0A1822]" />
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       type="button"
-                      onClick={() => void handleGenerate()}
-                      disabled={isGenerateDisabled}
-                      aria-label="Generate personal exam table"
-                      className="btn-neon-primary inline-flex items-center gap-2 px-6 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all disabled:opacity-40 disabled:pointer-events-none shadow-[0_0_20px_rgba(94,234,212,0.35)]"
+                      onClick={clearSavedRoutine}
+                      disabled={!hasDataToClear}
+                      title={
+                        !hasDataToClear
+                          ? "No routine data to clear"
+                          : "Clear all routine data"
+                      }
+                      className="btn-ghost-glass inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-mono-code disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:border-teal-500/20 disabled:hover:bg-transparent transition-all"
                     >
-                      {generating ? (
-                        <LoaderCircle className="w-4 h-4 animate-spin text-[#041B16]" />
-                      ) : (
-                        <Sparkles className="w-4 h-4 text-[#041B16]" />
-                      )}
-                      <span>{generating ? "Generating…" : "Generate"}</span>
+                      <Trash2 className="w-3.5 h-3.5 text-teal-400/70" />
+                      <span>Clear My Data</span>
                     </button>
-
-                    {/* Custom Glassmorphic Tooltip */}
-                    {generateDisabledReason && (
-                      <div
-                        role="tooltip"
-                        className="pointer-events-none absolute bottom-[calc(100%+0.65rem)] left-0 z-50 w-max max-w-[min(22rem,calc(100vw-2.5rem))] translate-y-1 rounded-xl border border-teal-400/35 bg-[#0A1822]/95 backdrop-blur-xl px-3.5 py-1.5 text-xs font-medium text-teal-100 opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 group-hover/gen:translate-y-0 group-hover/gen:opacity-100"
-                      >
-                        <div className="flex items-center gap-1.5 whitespace-normal sm:whitespace-nowrap">
-                          <span className="w-1.5 h-1.5 rounded-full bg-teal-400 shrink-0 shadow-[0_0_6px_rgba(94,234,212,0.8)]" />
-                          <span>{generateDisabledReason}</span>
-                        </div>
-                        <div className="absolute -bottom-1 left-7 w-2 h-2 rotate-45 border-r border-b border-teal-400/35 bg-[#0A1822]" />
-                      </div>
-                    )}
                   </div>
+
+                  {fileName && (
+                    <span className="text-[11px] font-mono-code text-teal-300/70 truncate max-w-[200px]">
+                      {fileName}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Right part of container: Three vertically stacked glass cards (Time, Privacy, Calendar) */}
+              <div className="lg:col-span-4 flex flex-col gap-3 lg:justify-center">
+                {/* Card 1: Accurate Timetable */}
+                <div className="group flex flex-1 flex-col justify-center gap-1.5 rounded-2xl glass-panel border border-teal-500/25 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-200 hover:border-teal-400/60 hover:bg-[#0c1f2b]/80 hover:shadow-[0_12px_32px_rgba(0,0,0,0.5),0_0_20px_rgba(94,234,212,0.12)] sm:p-5 cursor-default">
+                  <div className="flex items-center gap-2.5 text-white font-semibold text-sm transition-colors duration-200 group-hover:text-teal-200">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/10 border border-teal-500/20 text-[#5EEAD4] transition-all duration-200 group-hover:bg-teal-400/20 group-hover:border-teal-300/50 group-hover:text-teal-200 group-hover:shadow-[0_0_14px_rgba(94,234,212,0.3)]">
+                      <Clock3 className="w-3.5 h-3.5" />
+                    </div>
+                    <span>Accurate Timetable</span>
+                  </div>
+                  <p className="text-xs text-[#94A3B8] leading-relaxed transition-colors duration-200 group-hover:text-slate-200">
+                    Exam dates, shift times, and faculty info are normalized into
+                    a clear, chronological schedule.
+                  </p>
+                </div>
+
+                {/* Card 2: Client-Side Privacy */}
+                <div className="group flex flex-1 flex-col justify-center gap-1.5 rounded-2xl glass-panel border border-teal-500/25 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-200 hover:border-teal-400/60 hover:bg-[#0c1f2b]/80 hover:shadow-[0_12px_32px_rgba(0,0,0,0.5),0_0_20px_rgba(94,234,212,0.12)] sm:p-5 cursor-default">
+                  <div className="flex items-center gap-2.5 text-white font-semibold text-sm transition-colors duration-200 group-hover:text-teal-200">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/10 border border-teal-500/20 text-[#5EEAD4] transition-all duration-200 group-hover:bg-teal-400/20 group-hover:border-teal-300/50 group-hover:text-teal-200 group-hover:shadow-[0_0_14px_rgba(94,234,212,0.3)]">
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                    </div>
+                    <span>Client-Side Privacy</span>
+                  </div>
+                  <p className="text-xs text-[#94A3B8] leading-relaxed transition-colors duration-200 group-hover:text-slate-200">
+                    Your routines stay strictly in your browser. Saved exam data
+                    expires automatically after 15 days.
+                  </p>
+                </div>
+
+                {/* Card 3: Google Calendar Sync */}
+                <div className="group flex flex-1 flex-col justify-center gap-1.5 rounded-2xl glass-panel border border-teal-500/25 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-200 hover:border-teal-400/60 hover:bg-[#0c1f2b]/80 hover:shadow-[0_12px_32px_rgba(0,0,0,0.5),0_0_20px_rgba(94,234,212,0.12)] sm:p-5 cursor-default">
+                  <div className="flex items-center gap-2.5 text-white font-semibold text-sm transition-colors duration-200 group-hover:text-teal-200">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-teal-500/10 border border-teal-500/20 text-[#5EEAD4] transition-all duration-200 group-hover:bg-teal-400/20 group-hover:border-teal-300/50 group-hover:text-teal-200 group-hover:shadow-[0_0_14px_rgba(94,234,212,0.3)]">
+                      <CalendarDays className="w-3.5 h-3.5" />
+                    </div>
+                    <span>Google Calendar Sync</span>
+                  </div>
+                  <p className="text-xs text-[#94A3B8] leading-relaxed transition-colors duration-200 group-hover:text-slate-200">
+                    Add your exams & reminders directly to Google Calendar.
+                    Sign-in is 100% optional.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </LazySection>
+
+          {/* HOW IT WORKS (THE BLUEPRINT OF EXECUTION) */}
+          <LazySection
+            id="how-it-works"
+            className="order-3 w-full pt-8 flex flex-col gap-6"
+            minHeight="420px"
+          >
+            {/* Headline */}
+            <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
+              <div>
+                <span className="text-[11px] font-mono-code text-[#5EEAD4] uppercase tracking-widest block mb-1">
+                  How It Works
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                  Three simple steps to your schedule
+                </h2>
+              </div>
+              <div className="hidden sm:flex items-center gap-1 font-mono-code text-[11px] text-teal-400/60">
+                <span>01</span>
+                <span className="text-slate-600">/</span>
+                <span>03</span>
+              </div>
+            </div>
+
+            {/* Visuals: Isometric floating platforms 1, 2, 3 + flowchart graphic inside translucent box */}
+            <div className="hidden">
+              {/* Isometric platforms 1, 2, 3 */}
+              <div className="lg:col-span-6 glass-panel rounded-2xl p-5 relative overflow-hidden min-h-[190px] flex items-center justify-center border border-teal-500/25">
+                <div className="cyber-grid absolute inset-0 opacity-20" />
+
+                <div className="relative w-full max-w-[340px] h-[130px] flex items-center justify-between">
+                  {/* Glowing neon connecting lines */}
+                  <svg className="absolute inset-0 w-full h-full pointer-events-none">
+                    <line
+                      x1="22%"
+                      y1="68%"
+                      x2="50%"
+                      y2="45%"
+                      stroke="#5EEAD4"
+                      strokeWidth="2"
+                      strokeDasharray="4 4"
+                      className="laser-line"
+                    />
+                    <line
+                      x1="50%"
+                      y1="45%"
+                      x2="80%"
+                      y2="25%"
+                      stroke="#5EEAD4"
+                      strokeWidth="2"
+                      strokeDasharray="4 4"
+                      className="laser-line"
+                    />
+                  </svg>
+
+                  {/* Platform 1 */}
+                  <div className="absolute left-[12%] bottom-[12%] flex flex-col items-center">
+                    <div className="iso-pedestal w-14 h-11 rounded-lg bg-gradient-to-br from-teal-500/40 to-emerald-950/80 border border-teal-400/80 flex items-center justify-center shadow-[0_10px_20px_rgba(0,0,0,0.6)]">
+                      <span className="iso-pedestal-text font-tech text-lg font-black text-white glow-mint">
+                        1
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Platform 2 */}
+                  <div className="absolute left-[44%] top-[30%] flex flex-col items-center">
+                    <div className="iso-pedestal w-14 h-11 rounded-lg bg-gradient-to-br from-teal-500/50 to-emerald-900/90 border border-teal-300 flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.6)]">
+                      <span className="iso-pedestal-text font-tech text-lg font-black text-white glow-mint">
+                        2
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Platform 3 */}
+                  <div className="absolute right-[10%] top-[8%] flex flex-col items-center">
+                    <div className="iso-pedestal w-14 h-11 rounded-lg bg-gradient-to-br from-teal-500/60 to-emerald-800/90 border border-teal-300 flex items-center justify-center shadow-[0_10px_30px_rgba(94,234,212,0.35)]">
+                      <span className="iso-pedestal-text font-tech text-lg font-black text-white glow-mint">
+                        3
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="absolute right-3 bottom-2 text-[9px] font-mono-code text-teal-400/70 flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
+                    <span>Step Flowchart</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Flowchart graphic inside translucent box */}
+              <div className="lg:col-span-6 flex flex-col gap-3 justify-between">
+                {/* Upper flowchart */}
+                <div className="glass-panel rounded-xl p-3.5 border border-teal-500/20 relative overflow-hidden flex items-center justify-between">
+                  <div className="cyber-grid absolute inset-0 opacity-25" />
+                  <div className="relative z-10 flex items-center gap-3 text-[10px] font-mono-code">
+                    <div className="px-2.5 py-1 rounded bg-teal-900/50 border border-teal-500/30 text-teal-200">
+                      Parse Engine
+                    </div>
+                    <span className="text-teal-400">→</span>
+                    <div className="px-2.5 py-1 rounded bg-teal-900/50 border border-teal-500/30 text-teal-200">
+                      Matrix Match
+                    </div>
+                    <span className="text-teal-400">→</span>
+                    <div className="px-2.5 py-1 rounded bg-emerald-500/20 border border-emerald-400/40 text-emerald-200">
+                      Clean Table
+                    </div>
+                  </div>
+                  <span className="relative z-10 text-[9px] font-mono-code text-teal-400/60">
+                    00:55
+                  </span>
+                </div>
+
+                {/* Lower telemetry panel */}
+                <div className="glass-panel rounded-xl p-3.5 border border-teal-500/20 flex items-center justify-between text-xs">
+                  <div className="flex items-center gap-2 font-mono-code text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
+                      COURSE CODES
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
+                      EXCEL .XLSX
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
+                      YOUR ROUTINE
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-[#94A3B8]">
+                    From official routine to your own exam plan.
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Clear, evenly sized cards keep the workflow easy to scan. */}
+            <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-3 p-2 -m-2 overflow-visible">
+              {/* Step 1 */}
+              <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 transition-all duration-200 hover:border-teal-400/60 hover:bg-[#122830]/90 hover:shadow-[0_12px_36px_rgba(0,0,0,0.5),0_0_24px_rgba(94,234,212,0.14)] cursor-default">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200 transition-all duration-200 group-hover:border-teal-300/80 group-hover:bg-teal-300/20 group-hover:text-teal-100 group-hover:shadow-[0_0_16px_rgba(94,234,212,0.35)]">
+                    1
+                  </div>
+                  <h3 className="font-semibold text-base text-white transition-colors duration-200 group-hover:text-teal-200">
+                    Upload or Paste Drive Link
+                  </h3>
+                </div>
+                <p className="text-sm text-slate-300 leading-relaxed transition-colors duration-200 group-hover:text-slate-200">
+                  Upload your university exam routine file (.xlsx, .xls, .csv)
+                  or paste routine Drive link.
+                </p>
+              </div>
+
+              {/* Step 2 */}
+              <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 transition-all duration-200 hover:border-teal-400/60 hover:bg-[#122830]/90 hover:shadow-[0_12px_36px_rgba(0,0,0,0.5),0_0_24px_rgba(94,234,212,0.14)] cursor-default">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200 transition-all duration-200 group-hover:border-teal-300/80 group-hover:bg-teal-300/20 group-hover:text-teal-100 group-hover:shadow-[0_0_16px_rgba(94,234,212,0.35)]">
+                    2
+                  </div>
+                  <h3 className="font-semibold text-base text-white transition-colors duration-200 group-hover:text-teal-200">
+                    Enter Course Codes
+                  </h3>
+                </div>
+                <p className="text-sm text-slate-300 leading-relaxed transition-colors duration-200 group-hover:text-slate-200">
+                  Add your enrolled course codes (e.g. CSE181.5). The system
+                  automatically matches them case-insensitively.
+                </p>
+              </div>
+
+              {/* Step 3 */}
+              <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 transition-all duration-200 hover:border-teal-400/60 hover:bg-[#122830]/90 hover:shadow-[0_12px_36px_rgba(0,0,0,0.5),0_0_24px_rgba(94,234,212,0.14)] cursor-default">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200 transition-all duration-200 group-hover:border-teal-300/80 group-hover:bg-teal-300/20 group-hover:text-teal-100 group-hover:shadow-[0_0_16px_rgba(94,234,212,0.35)]">
+                    3
+                  </div>
+                  <h3 className="font-semibold text-base text-white transition-colors duration-200 group-hover:text-teal-200">
+                    Generate & Sync
+                  </h3>
+                </div>
+                <p className="text-sm text-slate-300 leading-relaxed transition-colors duration-200 group-hover:text-slate-200">
+                  Instantly view your personal exam timetable. Export as PDF,
+                  print cleanly, or sync to Google Calendar.
+                </p>
+              </div>
+            </div>
+          </LazySection>
+
+          {/* TABLE SECTION */}
+          <LazySection
+            id="results"
+            className="order-5 w-full pt-8 flex flex-col gap-4"
+            minHeight="360px"
+          >
+            {/* Header */}
+            <div className="results-heading no-print flex flex-wrap items-end justify-between gap-3 border-b border-teal-500/20 pb-3">
+              <div>
+                <span className="mb-1 block font-mono-code text-[11px] uppercase tracking-widest text-[#5EEAD4]">
+                  Results
+                </span>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
+                  Your generated exam table
+                </h2>
+                {isRevealingRows ? (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
+                    </span>
+                    <p className="text-xs font-mono text-teal-300">
+                      Generating timetable... {visibleRowCount} of {generatedExams.length} exams identified
+                    </p>
+                  </div>
+                ) : generatedExams.length > 0 ? (
+                  <p className="mt-1 text-xs text-[#94A3B8]">
+                    Generated: {formatGeneratedDate(new Date())}
+                  </p>
+                ) : null}
+              </div>
+
+              {generatedExams.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <button
+                    type="button"
+                    onClick={exportPdf}
+                    disabled={isRevealingRows}
+                    className="btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Download className="w-3.5 h-3.5 text-teal-400" />
+                    <span>Download PDF</span>
+                  </button>
 
                   <button
                     type="button"
-                    onClick={clearSavedRoutine}
-                    className="btn-ghost-glass inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-mono-code"
+                    onClick={exportPng}
+                    disabled={pngExporting || isRevealingRows}
+                    className="btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <Trash2 className="w-3.5 h-3.5 text-teal-400/70" />
-                    <span>Clear My Data</span>
+                    {pngExporting ? (
+                      <LoaderCircle className="w-3.5 h-3.5 animate-spin text-teal-400" />
+                    ) : (
+                      <Download className="w-3.5 h-3.5 text-teal-400" />
+                    )}
+                    <span>
+                      {pngExporting ? "Rendering PNG..." : "Download PNG"}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    disabled={isRevealingRows}
+                    className="no-print btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-teal-400" />
+                    <span>Print PDF</span>
                   </button>
                 </div>
-
-                {fileName && (
-                  <span className="text-[11px] font-mono-code text-teal-300/70 truncate max-w-[200px]">
-                    {fileName}
-                  </span>
-                )}
-              </div>
-
-            </div>
-
-            {/* Right part of container: Three vertically stacked glass cards (Time, Privacy, Calendar) */}
-            <div className="lg:col-span-4 flex flex-col gap-3 lg:justify-center">
-              {/* Card 1: Time */}
-              <div className="flex flex-1 flex-col justify-center gap-1.5 rounded-2xl glass-panel border border-teal-500/25 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] sm:p-5">
-                <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                  <Clock3 className="w-4 h-4 text-[#5EEAD4]" />
-                  <span>Time</span>
-                </div>
-                <p className="text-xs text-[#94A3B8] leading-relaxed">
-                  Exam dates and times are normalized into a clear, easy-to-scan schedule.
-                </p>
-              </div>
-
-              {/* Card 2: Privacy */}
-              <div className="flex flex-1 flex-col justify-center gap-1.5 rounded-2xl glass-panel border border-teal-500/25 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] sm:p-5">
-                <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                  <ShieldCheck className="w-4 h-4 text-[#5EEAD4]" />
-                  <span>Privacy</span>
-                </div>
-                <p className="text-xs text-[#94A3B8] leading-relaxed">
-                  Your routine stays on your device. Saved exam data expires automatically after 15 days.
-                </p>
-              </div>
-
-              {/* Card 3: Calendar */}
-              <div className="flex flex-1 flex-col justify-center gap-1.5 rounded-2xl glass-panel border border-teal-500/25 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] sm:p-5">
-                <div className="flex items-center gap-2 text-white font-semibold text-sm">
-                  <CalendarDays className="w-4 h-4 text-[#5EEAD4]" />
-                  <span>Calendar</span>
-                </div>
-                <p className="text-xs text-[#94A3B8] leading-relaxed">
-                  Connecting Google is optional. Your schedule works without signing in.
-                </p>
-              </div>
-            </div>
-          </div>
-        </LazySection>
-
-        {/* HOW IT WORKS (THE BLUEPRINT OF EXECUTION) */}
-        <LazySection id="how-it-works" className="order-3 w-full pt-8 flex flex-col gap-6" minHeight="420px">
-          {/* Headline */}
-          <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
-            <div>
-              <span className="text-[11px] font-mono-code text-[#5EEAD4] uppercase tracking-widest block mb-1">
-                How It Works
-              </span>
-              <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-                Three simple steps to your schedule
-              </h2>
-            </div>
-            <div className="hidden sm:flex items-center gap-1 font-mono-code text-[11px] text-teal-400/60">
-              <span>01</span>
-              <span className="text-slate-600">/</span>
-              <span>03</span>
-            </div>
-          </div>
-
-          {/* Visuals: Isometric floating platforms 1, 2, 3 + flowchart graphic inside translucent box */}
-          <div className="hidden">
-            {/* Isometric platforms 1, 2, 3 */}
-            <div className="lg:col-span-6 glass-panel rounded-2xl p-5 relative overflow-hidden min-h-[190px] flex items-center justify-center border border-teal-500/25">
-              <div className="cyber-grid absolute inset-0 opacity-20" />
-
-              <div className="relative w-full max-w-[340px] h-[130px] flex items-center justify-between">
-                {/* Glowing neon connecting lines */}
-                <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                  <line
-                    x1="22%"
-                    y1="68%"
-                    x2="50%"
-                    y2="45%"
-                    stroke="#5EEAD4"
-                    strokeWidth="2"
-                    strokeDasharray="4 4"
-                    className="laser-line"
-                  />
-                  <line
-                    x1="50%"
-                    y1="45%"
-                    x2="80%"
-                    y2="25%"
-                    stroke="#5EEAD4"
-                    strokeWidth="2"
-                    strokeDasharray="4 4"
-                    className="laser-line"
-                  />
-                </svg>
-
-                {/* Platform 1 */}
-                <div className="absolute left-[12%] bottom-[12%] flex flex-col items-center">
-                  <div className="iso-pedestal w-14 h-11 rounded-lg bg-gradient-to-br from-teal-500/40 to-emerald-950/80 border border-teal-400/80 flex items-center justify-center shadow-[0_10px_20px_rgba(0,0,0,0.6)]">
-                    <span className="iso-pedestal-text font-tech text-lg font-black text-white glow-mint">
-                      1
-                    </span>
-                  </div>
-                </div>
-
-                {/* Platform 2 */}
-                <div className="absolute left-[44%] top-[30%] flex flex-col items-center">
-                  <div className="iso-pedestal w-14 h-11 rounded-lg bg-gradient-to-br from-teal-500/50 to-emerald-900/90 border border-teal-300 flex items-center justify-center shadow-[0_10px_25px_rgba(0,0,0,0.6)]">
-                    <span className="iso-pedestal-text font-tech text-lg font-black text-white glow-mint">
-                      2
-                    </span>
-                  </div>
-                </div>
-
-                {/* Platform 3 */}
-                <div className="absolute right-[10%] top-[8%] flex flex-col items-center">
-                  <div className="iso-pedestal w-14 h-11 rounded-lg bg-gradient-to-br from-teal-500/60 to-emerald-800/90 border border-teal-300 flex items-center justify-center shadow-[0_10px_30px_rgba(94,234,212,0.35)]">
-                    <span className="iso-pedestal-text font-tech text-lg font-black text-white glow-mint">
-                      3
-                    </span>
-                  </div>
-                </div>
-
-                <div className="absolute right-3 bottom-2 text-[9px] font-mono-code text-teal-400/70 flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-teal-400" />
-                  <span>Step Flowchart</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Flowchart graphic inside translucent box */}
-            <div className="lg:col-span-6 flex flex-col gap-3 justify-between">
-              {/* Upper flowchart */}
-              <div className="glass-panel rounded-xl p-3.5 border border-teal-500/20 relative overflow-hidden flex items-center justify-between">
-                <div className="cyber-grid absolute inset-0 opacity-25" />
-                <div className="relative z-10 flex items-center gap-3 text-[10px] font-mono-code">
-                  <div className="px-2.5 py-1 rounded bg-teal-900/50 border border-teal-500/30 text-teal-200">
-                    Parse Engine
-                  </div>
-                  <span className="text-teal-400">→</span>
-                  <div className="px-2.5 py-1 rounded bg-teal-900/50 border border-teal-500/30 text-teal-200">
-                    Matrix Match
-                  </div>
-                  <span className="text-teal-400">→</span>
-                  <div className="px-2.5 py-1 rounded bg-emerald-500/20 border border-emerald-400/40 text-emerald-200">
-                    Clean Table
-                  </div>
-                </div>
-                <span className="relative z-10 text-[9px] font-mono-code text-teal-400/60">
-                  00:55
-                </span>
-              </div>
-
-              {/* Lower telemetry panel */}
-              <div className="glass-panel rounded-xl p-3.5 border border-teal-500/20 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2 font-mono-code text-[10px]">
-                  <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
-                    COURSE CODES
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
-                    EXCEL .XLSX
-                  </span>
-                  <span className="px-2 py-0.5 rounded bg-teal-500/10 text-teal-300 border border-teal-500/20">
-                    YOUR ROUTINE
-                  </span>
-                </div>
-                <span className="text-[11px] text-[#94A3B8]">
-                  From official routine to your own exam plan.
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Clear, evenly sized cards keep the workflow easy to scan. */}
-          <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-3 p-2 -m-2 overflow-visible">
-            {/* Step 1 */}
-            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 hover:border-teal-400/80">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200">
-                  1
-                </div>
-                <h3 className="font-semibold text-base text-white">Upload or Paste Link</h3>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                Choose between uploading an Excel file (.xlsx / .xls / .csv) or pasting a Google Drive link.
-              </p>
-            </div>
-
-            {/* Step 2 */}
-            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 hover:border-teal-400/80">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200">
-                  2
-                </div>
-                <h3 className="font-semibold text-base text-white">Enter course codes</h3>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                Type or paste the codes you are taking. The parser matches them case-insensitively and ignores dashes.
-              </p>
-            </div>
-
-            {/* Step 3 */}
-            <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 hover:border-teal-400/80">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-teal-300/30 bg-teal-300/10 font-bold text-lg text-teal-200">
-                  3
-                </div>
-                <h3 className="font-semibold text-base text-white">Generate and export</h3>
-              </div>
-              <p className="text-sm text-slate-300 leading-relaxed">
-                Review your table, then print it or download a PDF to keep it handy.
-              </p>
-            </div>
-          </div>
-        </LazySection>
-
-        {/* TABLE SECTION */}
-        <LazySection id="results" className="order-5 w-full pt-8 flex flex-col gap-4" minHeight="360px">
-          {/* Header */}
-          <div className="results-heading no-print flex flex-wrap items-end justify-between gap-3 border-b border-teal-500/20 pb-3">
-            <div>
-              <span className="mb-1 block font-mono-code text-[11px] uppercase tracking-widest text-[#5EEAD4]">
-                Results
-              </span>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-                Your generated exam table
-              </h2>
-              {generatedExams.length > 0 && (
-                <p className="mt-1 text-xs text-[#94A3B8]">
-                  Generated: {formatGeneratedDate(new Date())}
-                </p>
               )}
             </div>
 
-            {generatedExams.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2.5">
-                <button
-                  type="button"
-                  onClick={exportPdf}
-                  className="btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs"
-                >
-                  <Download className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Download PDF</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={exportPng}
-                  disabled={pngExporting}
-                  className="btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs"
-                >
-                  {pngExporting ? (
-                    <LoaderCircle className="w-3.5 h-3.5 animate-spin text-teal-400" />
-                  ) : (
-                    <Download className="w-3.5 h-3.5 text-teal-400" />
-                  )}
-                  <span>{pngExporting ? "Rendering PNG..." : "Download PNG"}</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="no-print btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs"
-                >
-                  <Printer className="w-3.5 h-3.5 text-teal-400" />
-                  <span>Print PDF</span>
-                </button>
-              </div>
-            )}
-          </div>
-
-          {/* Show a centered empty state until a routine is generated; results are always a table. */}
-          {generatedExams.length === 0 ? (
-            <div className="empty-results-panel relative flex min-h-[300px] w-full items-center justify-center overflow-hidden rounded-2xl border border-teal-500/30 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.45)] sm:p-6">
-              <div aria-hidden="true" className="empty-results-preview">
-                <div className="empty-preview-title"><span>EXAM ROUTINE</span><span>DATE · COURSE · TIME</span></div>
-                <div className="empty-preview-row"><i /><i /><i /></div>
-                <div className="empty-preview-row"><i /><i /><i /></div>
-                <div className="empty-preview-row"><i /><i /><i /></div>
-                <div className="empty-preview-row"><i /><i /><i /></div>
-              </div>
-              <div aria-hidden="true" className="empty-results-scrim" />
+            {/* Show futuristic animated skeleton while generating, otherwise empty state or table */}
+            {generating ? (
               <div
                 role="status"
-                className="empty-results-card group/empty relative z-10 flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl px-5 py-6 text-center sm:px-10 sm:py-8 cursor-default select-none"
+                aria-live="polite"
+                className="relative w-full rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)] animate-in fade-in duration-300"
               >
-                <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teal-500/20 bg-teal-500/5 text-teal-300 transition-all duration-300 group-hover/empty:scale-105 group-hover/empty:border-teal-400/35 group-hover/empty:bg-teal-500/10 group-hover/empty:text-teal-200 group-hover/empty:shadow-[0_0_12px_rgba(94,234,212,0.12)]">
-                  <FileText className="h-6 w-6" aria-hidden="true" />
-                </span>
-                <h3 className="text-lg font-semibold text-white tracking-tight transition-colors duration-300 group-hover/empty:text-[#5EEAD4]">
-                  No exam data yet
-                </h3>
-                <p className="max-w-xs text-sm leading-relaxed text-slate-300 transition-colors duration-300 group-hover/empty:text-slate-100">
-                  Upload a routine above to see your personal exam table here.
-                </p>
-              </div>
-            </div>
-          ) : (
-            <>
-              <div className="print-header">
-                <h1>Exam Routine</h1>
-                <p>Generated: {formatGeneratedDate(new Date())}</p>
-              </div>
+                {/* Sweeping laser / scanner line across top */}
+                <div className="pointer-events-none absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#5EEAD4] to-transparent animate-shimmer" />
 
-              {/* Table Container with In-Table Frosted Glass Sync Overlay */}
-              <div className="relative w-full">
-                <div className="print-table-wrapper relative w-full rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
-                  <table className="routine-table w-full min-w-[760px] text-left text-sm">
+                <table className="routine-table w-full min-w-[760px] text-left text-sm font-sans">
                   <thead>
-                    <tr className="border-b border-teal-500/30 bg-[#0B1A24]/90 font-mono-code text-teal-300 text-[11px]">
+                    <tr className="border-b border-teal-500/30 bg-[#0B1A24]/95 font-sans font-bold text-teal-300 text-[11px] tracking-wider uppercase">
                       <th className="py-3.5 px-4 font-semibold">DATE</th>
                       <th className="py-3.5 px-4 font-semibold">DAY</th>
                       <th className="py-3.5 px-4 font-semibold">TIME</th>
                       <th className="py-3.5 px-4 font-semibold">COURSE</th>
-                      <th className="py-3.5 px-4 font-semibold">COURSE TITLE</th>
+                      <th className="py-3.5 px-4 font-semibold">
+                        COURSE TITLE
+                      </th>
                       <th className="py-3.5 px-4 font-semibold">FACULTY</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-teal-500/15">
-                    {generatedExams.map((exam) => (
-                      <tr
-                        key={exam.id}
-                        className="hover:bg-teal-500/10 transition-colors"
-                      >
-                        <td className="py-3.5 px-4 font-mono-code text-white whitespace-nowrap">
-                          {formatExamDate(exam)}
+                    {[
+                      {
+                        dateW: "w-24",
+                        dayW: "w-16",
+                        timeW: "w-28",
+                        codeW: "w-20",
+                        titleW: "w-48",
+                        facW: "w-28",
+                      },
+                      {
+                        dateW: "w-20",
+                        dayW: "w-14",
+                        timeW: "w-28",
+                        codeW: "w-24",
+                        titleW: "w-56",
+                        facW: "w-32",
+                      },
+                      {
+                        dateW: "w-24",
+                        dayW: "w-16",
+                        timeW: "w-28",
+                        codeW: "w-20",
+                        titleW: "w-40",
+                        facW: "w-24",
+                      },
+                      {
+                        dateW: "w-22",
+                        dayW: "w-14",
+                        timeW: "w-28",
+                        codeW: "w-20",
+                        titleW: "w-52",
+                        facW: "w-28",
+                      },
+                    ].map((row, idx) => (
+                      <tr key={idx} className="bg-teal-500/[0.02]">
+                        <td className="py-3.5 px-4">
+                          <div
+                            className={`h-4 ${row.dateW} rounded-md animate-skeleton-wave border border-teal-500/20`}
+                          />
                         </td>
-                        <td className="py-3.5 px-4 text-[#94A3B8] whitespace-nowrap">
-                          {getDayName(exam.date)}
+                        <td className="py-3.5 px-4">
+                          <div
+                            className={`h-4 ${row.dayW} rounded-md animate-skeleton-wave border border-teal-500/15`}
+                          />
                         </td>
-                        <td className="py-3.5 px-4 font-mono-code text-[#5EEAD4] whitespace-nowrap">
-                          {formatTime(exam.startTime)} – {formatTime(exam.endTime)}
+                        <td className="py-3.5 px-4">
+                          <div
+                            className={`h-4 ${row.timeW} rounded-md animate-skeleton-wave border border-teal-400/25`}
+                          />
                         </td>
-                        <td className="py-3.5 px-4 font-mono-code font-bold text-teal-200 whitespace-nowrap">
-                          <span className="px-2 py-0.5 rounded-full bg-teal-500/20 border border-teal-400/30">
-                            {exam.courseCode}
-                          </span>
+                        <td className="py-3.5 px-4">
+                          <div
+                            className={`h-5 ${row.codeW} rounded-full animate-skeleton-wave border border-teal-400/40`}
+                          />
                         </td>
-                        <td className="py-3.5 px-4 text-white font-medium leading-relaxed whitespace-normal">
-                          {exam.courseTitle}
+                        <td className="py-3.5 px-4">
+                          <div
+                            className={`h-4 ${row.titleW} rounded-md animate-skeleton-wave border border-teal-500/15`}
+                          />
                         </td>
-                        <td className="py-3.5 px-4 font-mono-code font-semibold text-teal-100">
-                          {formatFaculty(exam.faculty)}
+                        <td className="py-3.5 px-4">
+                          <div
+                            className={`h-4 ${row.facW} rounded-md animate-skeleton-wave border border-teal-500/20`}
+                          />
                         </td>
                       </tr>
                     ))}
                   </tbody>
-                  </table>
+                </table>
+              </div>
+            ) : !isHydrated ? (
+              <div
+                aria-hidden="true"
+                className="relative flex min-h-[300px] w-full items-center justify-center rounded-2xl border border-transparent"
+              />
+            ) : generatedExams.length === 0 ? (
+              <div className="empty-results-panel relative flex min-h-[300px] w-full items-center justify-center overflow-hidden rounded-2xl border border-teal-500/30 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.45)] sm:p-6">
+                <div aria-hidden="true" className="empty-results-preview">
+                  <div className="empty-preview-title">
+                    <span>EXAM ROUTINE</span>
+                    <span>DATE · COURSE · TIME</span>
+                  </div>
+                  <div className="empty-preview-row">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                  <div className="empty-preview-row">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                  <div className="empty-preview-row">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                  <div className="empty-preview-row">
+                    <i />
+                    <i />
+                    <i />
+                  </div>
+                </div>
+                <div aria-hidden="true" className="empty-results-scrim" />
+                <div
+                  role="status"
+                  className="empty-results-card group/empty relative z-10 flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl px-5 py-6 text-center sm:px-10 sm:py-8 cursor-default select-none"
+                >
+                  <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teal-500/20 bg-teal-500/5 text-teal-300 transition-all duration-200 group-hover/empty:border-teal-400/50 group-hover/empty:bg-teal-500/15 group-hover/empty:text-teal-100 group-hover/empty:shadow-[0_0_16px_rgba(94,234,212,0.2)]">
+                    <FileText className="h-6 w-6" aria-hidden="true" />
+                  </span>
+                  <h3 className="text-lg font-semibold text-white tracking-tight transition-colors duration-300 group-hover/empty:text-[#5EEAD4]">
+                    No exam data yet
+                  </h3>
+                  <p className="max-w-xs text-sm leading-relaxed text-slate-300 transition-colors duration-300 group-hover/empty:text-slate-100">
+                    Upload a routine above to see your personal exam table here.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="print-header">
+                  <h1>Exam Routine</h1>
+                  <p>Generated: {formatGeneratedDate(new Date())}</p>
                 </div>
 
-                {/* In-Table Compact Frosted Glass Sync Overlay */}
-                {showCalendarSyncPrompt && generatedExams.length > 0 && !isSampleRoutine && (
-                  <div className="no-print absolute inset-0 z-30 flex items-center justify-center p-4 pointer-events-none">
+                {/* Table Container with In-Table Frosted Glass Sync Overlay */}
+                <div className="relative w-full">
+                  {/* Sweeping laser line indicator while revealing rows */}
+                  {isRevealingRows && (
+                    <div className="pointer-events-none absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#5EEAD4] to-transparent animate-shimmer z-30" />
+                  )}
+
+                  <div
+                    ref={tableWrapperRef}
+                    onMouseDown={handleTableMouseDown}
+                    className={`print-table-wrapper relative w-full rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)] transition-all duration-500 ease-out select-none cursor-grab active:cursor-grabbing ${
+                      showCalendarSyncPrompt && !isSyncPromptClosing
+                        ? "backdrop-blur-md opacity-35 blur-[1.5px] pointer-events-none"
+                        : "opacity-100 blur-0"
+                    }`}
+                  >
+                    <table className="routine-table w-full min-w-[760px] text-left text-sm font-sans">
+                      <thead>
+                        <tr className="border-b border-teal-500/30 bg-[#0B1A24]/95 font-sans font-bold text-teal-300 text-[11px] tracking-wider uppercase">
+                          <th className="py-3.5 px-4 font-bold">DATE</th>
+                          <th className="py-3.5 px-4 font-bold">DAY</th>
+                          <th className="py-3.5 px-4 font-bold">TIME</th>
+                          <th className="py-3.5 px-4 font-bold">COURSE</th>
+                          <th className="py-3.5 px-4 font-bold">
+                            COURSE TITLE
+                          </th>
+                          <th className="py-3.5 px-4 font-bold">FACULTY</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-teal-500/15 font-sans">
+                        {generatedExams
+                          .slice(0, visibleRowCount)
+                          .map((exam, index) => (
+                            <tr
+                              key={exam.id}
+                              className={`group/row animate-row-reveal cursor-default transition-all duration-300 ${
+                                isRevealingRows && index === visibleRowCount - 1
+                                  ? "bg-teal-500/15 shadow-[inset_0_0_16px_rgba(94,234,212,0.22)]"
+                                  : ""
+                              }`}
+                            >
+                            <td className="py-3.5 px-4 font-sans font-semibold text-white/95 tabular-nums whitespace-nowrap tracking-tight">
+                              {formatExamDate(exam)}
+                            </td>
+                            <td className="py-3.5 px-4 font-sans font-medium text-slate-300 whitespace-nowrap transition-colors duration-200 group-hover/row:text-teal-200">
+                              {getDayName(exam.date)}
+                            </td>
+                            <td className="py-3.5 px-4 font-sans font-semibold text-[#5EEAD4] tabular-nums whitespace-nowrap tracking-tight transition-colors duration-200 group-hover/row:text-teal-200">
+                              {formatTime(exam.startTime)} –{" "}
+                              {formatTime(exam.endTime)}
+                            </td>
+                            <td className="py-3.5 px-4 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg font-sans font-bold text-xs tracking-wide bg-teal-500/20 border border-teal-400/30 text-teal-200 transition-all duration-200 group-hover/row:border-teal-300 group-hover/row:bg-teal-400/25 group-hover/row:shadow-[0_0_12px_rgba(94,234,212,0.3)]">
+                                {exam.courseCode}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 font-sans text-white font-semibold leading-relaxed whitespace-normal transition-colors duration-200 group-hover/row:text-teal-50">
+                              {exam.courseTitle}
+                            </td>
+                            <td className="py-3.5 px-4 font-sans font-medium text-slate-200 whitespace-nowrap transition-colors duration-200 group-hover/row:text-teal-100">
+                              {formatFaculty(exam.faculty)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Right edge fade & pulse indicator when more columns exist */}
+                  {tableScrollState.canRight && (
                     <div
-                      role="dialog"
-                      aria-label="Google Calendar Sync Prompt"
-                      className="pointer-events-auto relative flex flex-col items-center gap-2.5 rounded-2xl border border-teal-400/35 bg-[#0A1822]/85 backdrop-blur-xl px-6 py-3.5 text-center shadow-[0_16px_40px_rgba(0,0,0,0.7),0_0_20px_rgba(94,234,212,0.18)] max-w-xs animate-in fade-in zoom-in-95 duration-200"
+                      onClick={() =>
+                        tableWrapperRef.current?.scrollBy({
+                          left: 240,
+                          behavior: "smooth",
+                        })
+                      }
+                      aria-hidden="true"
+                      className="no-print pointer-events-auto cursor-pointer absolute right-0 top-0 bottom-0 w-12 sm:w-16 bg-gradient-to-l from-[#07131B]/95 via-[#07131B]/55 to-transparent z-20 flex items-center justify-end pr-2.5 rounded-r-2xl transition-opacity duration-300"
+                      title="Click or drag to view Faculty and details"
                     >
-                      <span className="text-xs sm:text-[13px] font-semibold text-white tracking-wide whitespace-nowrap">
-                        Sync with Google Calendar?
-                      </span>
-
-                      {/* 2 icon buttons: Cross & Correct with custom frosted glass tooltips */}
-                      <div className="flex items-center justify-center gap-5">
-                        {/* Cross Button: Cancel / Do not sync */}
-                        <div className="group/cancel relative inline-flex items-center justify-center">
-                          <button
-                            type="button"
-                            onClick={() => setShowCalendarSyncPrompt(false)}
-                            aria-label="Do not sync with Google Calendar"
-                            className="flex items-center justify-center bg-transparent border-0 text-rose-400 hover:text-rose-300 hover:scale-125 transition-transform p-1 cursor-pointer focus:outline-none"
-                          >
-                            <X className="h-5 w-5 stroke-[2.5]" />
-                          </button>
-                          <div
-                            role="tooltip"
-                            className="pointer-events-none absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 z-50 rounded-lg border border-rose-500/35 bg-[#0D151D]/95 backdrop-blur-xl px-2.5 py-0.5 text-[10px] font-medium text-rose-200 opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.6),0_0_12px_rgba(244,63,94,0.25)] transition-all duration-150 group-hover/cancel:translate-y-0 group-hover/cancel:opacity-100 -translate-y-1 whitespace-nowrap"
-                          >
-                            <span>Cancel</span>
-                            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rotate-45 border-l border-t border-rose-500/35 bg-[#0D151D]" />
-                          </div>
-                        </div>
-
-                        {/* Correct Button: Confirm sync */}
-                        <div className="group/sync relative inline-flex items-center justify-center">
-                          <button
-                            type="button"
-                            disabled={calendarSyncing}
-                            onClick={async () => {
-                              setCalendarSyncing(true);
-                              setError("");
-
-                              const requireDrive = routineSourceRef.current === "drive";
-
-                              try {
-                                if (authSession && hasCalendarScope) {
-                                  const ok = await syncCalendar(generatedExams);
-                                  if (ok) {
-                                    setShowCalendarSyncPrompt(false);
-                                  }
-                                  return;
-                                }
-
-                                const popupResult = await startGoogleSignInPopup({ requireDrive });
-
-                                if (popupResult?.error) {
-                                  if (popupResult.error.code === "POPUP_CLOSED") {
-                                    return;
-                                  }
-                                  if (popupResult.error.code === "POPUP_BLOCKED") {
-                                    setError("Popup was blocked by your browser. Please allow popups for ExamMate to connect Google Calendar.");
-                                    return;
-                                  }
-                                  throw new Error(popupResult.error.message || "Google authorization could not be completed.");
-                                }
-
-                                const ok = await syncCalendar(generatedExams);
-                                if (ok) {
-                                  setShowCalendarSyncPrompt(false);
-                                }
-                              } catch (err) {
-                                setError(err instanceof Error ? err.message : "Could not complete Calendar sync.");
-                              } finally {
-                                setCalendarSyncing(false);
-                              }
-                            }}
-                            aria-label="Sync to Google Calendar"
-                            className="flex items-center justify-center bg-transparent border-0 text-emerald-400 hover:text-emerald-300 hover:scale-125 transition-transform p-1 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {calendarSyncing ? (
-                              <LoaderCircle className="h-5 w-5 animate-spin text-emerald-300" />
-                            ) : (
-                              <Check className="h-5 w-5 stroke-[2.5]" />
-                            )}
-                          </button>
-                          <div
-                            role="tooltip"
-                            className="pointer-events-none absolute top-[calc(100%+0.5rem)] left-1/2 -translate-x-1/2 z-50 rounded-lg border border-teal-400/35 bg-[#0D151D]/95 backdrop-blur-xl px-2.5 py-0.5 text-[10px] font-medium text-teal-200 opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.6),0_0_12px_rgba(94,234,212,0.25)] transition-all duration-150 group-hover/sync:translate-y-0 group-hover/sync:opacity-100 -translate-y-1 whitespace-nowrap"
-                          >
-                            <span>Sync</span>
-                            <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rotate-45 border-l border-t border-teal-400/35 bg-[#0D151D]" />
-                          </div>
-                        </div>
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#091A25]/90 border border-teal-400/50 text-teal-200 shadow-[0_0_14px_rgba(94,234,212,0.4)] hover:border-teal-300 hover:bg-[#0c2432] hover:text-white hover:shadow-[0_0_18px_rgba(94,234,212,0.5)] transition-all duration-200">
+                        <ChevronRight className="w-4 h-4 animate-pulse" />
                       </div>
                     </div>
-                  </div>
-                )}
-              </div>
-              <div className="print-footer">ExamMate</div>
-            </>
-          )}
-        </LazySection>
+                  )}
 
-        {/* FAQ SECTION */}
-        <LazySection id="faq" className="order-6 w-full pt-8 flex flex-col gap-5" minHeight="360px">
-          {/* Headline */}
-          <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
-            <div>
-              <span className="text-[11px] font-mono-code text-[#5EEAD4] uppercase tracking-widest block mb-1">
-                FAQ
-              </span>
-              <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white font-tech">
-                Questions students usually ask
-              </h2>
-            </div>
-            <div className="hidden sm:flex items-center gap-1 font-mono-code text-[11px] text-teal-400/60">
-              <span>[ // // // ]</span>
-            </div>
-          </div>
+                  {/* Left edge fade & pulse indicator when scrolled right */}
+                  {tableScrollState.canLeft && (
+                    <div
+                      onClick={() =>
+                        tableWrapperRef.current?.scrollBy({
+                          left: -240,
+                          behavior: "smooth",
+                        })
+                      }
+                      aria-hidden="true"
+                      className="no-print pointer-events-auto cursor-pointer absolute left-0 top-0 bottom-0 w-12 sm:w-16 bg-gradient-to-r from-[#07131B]/95 via-[#07131B]/55 to-transparent z-20 flex items-center justify-start pl-2.5 rounded-l-2xl transition-opacity duration-300"
+                      title="Click or drag to view Date & Time"
+                    >
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#091A25]/90 border border-teal-400/50 text-teal-200 shadow-[0_0_14px_rgba(94,234,212,0.4)] hover:border-teal-300 hover:bg-[#0c2432] hover:text-white hover:shadow-[0_0_18px_rgba(94,234,212,0.5)] transition-all duration-200">
+                        <ChevronLeft className="w-4 h-4 animate-pulse" />
+                      </div>
+                    </div>
+                  )}
 
-          {/* Accordion-style vertical list of 4 questions */}
-          <div className="flex flex-col gap-3 p-2 -m-2 overflow-visible">
-            {faqItems.map((item) => (
-              <details
-                key={item.question}
-                className="group rounded-2xl glass-card border border-teal-500/20 overflow-hidden transition-all duration-200 hover:border-teal-400/80"
-              >
-                <summary className="flex items-center justify-between gap-4 p-4 sm:p-5 cursor-pointer text-sm font-medium text-white hover:text-teal-200 select-none">
-                  <span>{item.question}</span>
-                  <ChevronDown className="w-4 h-4 text-teal-400 transition-transform duration-200 group-open:rotate-180 flex-shrink-0" />
-                </summary>
-                <div className="px-4 pb-4 sm:px-5 sm:pb-5 text-xs text-[#94A3B8] leading-relaxed border-t border-teal-500/10 pt-3">
-                  {item.answer}
+                  {/* In-Table Compact Frosted Glass Sync Overlay */}
+                  {showCalendarSyncPrompt &&
+                    generatedExams.length > 0 &&
+                    !isSampleRoutine && (
+                      <div
+                        className={`no-print absolute inset-0 z-30 flex items-center justify-center p-4 pointer-events-none transition-all duration-500 ease-out ${
+                          isSyncPromptClosing
+                            ? "opacity-0 backdrop-blur-none"
+                            : "opacity-100"
+                        }`}
+                      >
+                        <div
+                          role="dialog"
+                          aria-label="Google Calendar Sync Prompt"
+                          className={`pointer-events-auto relative flex flex-col items-center gap-3 rounded-2xl border border-teal-400/40 bg-[#0A1822]/90 backdrop-blur-2xl px-7 py-4 text-center shadow-[0_24px_50px_rgba(0,0,0,0.85),0_0_35px_rgba(94,234,212,0.22)] max-w-sm transition-all duration-500 ease-out ${
+                            isSyncPromptClosing
+                              ? "opacity-0 scale-90 translate-y-3 pointer-events-none"
+                              : "opacity-100 scale-100 translate-y-0 animate-in fade-in zoom-in-95 duration-500"
+                          }`}
+                        >
+                          {/* Ambient background glow behind card */}
+                          <div className="absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-teal-500/20 via-emerald-500/10 to-teal-500/20 opacity-50 blur-lg -z-10 pointer-events-none" />
+
+                          {/* Header text or syncing title */}
+                          {calendarSyncing ? (
+                            <div className="flex items-center gap-2 text-teal-100 transition-all duration-300">
+                              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                              <span className="text-xs sm:text-[13px] font-semibold tracking-wide">
+                                Syncing to Google Calendar…
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs sm:text-[13px] font-semibold text-white tracking-wide whitespace-nowrap transition-all duration-300">
+                              Sync with Google Calendar?
+                            </span>
+                          )}
+
+                          {/* Body: Either Circular Loader OR Action Buttons */}
+                          {calendarSyncing ? (
+                            <div className="flex flex-col items-center justify-center py-1 transition-all duration-300 animate-in fade-in zoom-in-90">
+                              <div className="relative flex items-center justify-center">
+                                <div className="absolute w-9 h-9 rounded-full bg-teal-400/15 animate-ping" />
+                                <LoaderCircle className="h-6 w-6 animate-spin text-emerald-300 stroke-[2.5]" />
+                              </div>
+                              <span className="mt-2 text-[10.5px] font-mono-code text-teal-300/80 tracking-wider">
+                                Adding exams & reminders…
+                              </span>
+                            </div>
+                          ) : (
+                            /* 2 icon buttons: Cross & Correct with custom frosted glass tooltips */
+                            <div className="flex items-center justify-center gap-6 transition-all duration-300">
+                              {/* Cross Button: Cancel / Do not sync */}
+                              <div className="group/cancel relative inline-flex items-center justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => closeSyncPrompt()}
+                                  aria-label="Do not sync with Google Calendar"
+                                  className="flex items-center justify-center bg-transparent border-0 text-rose-400 hover:text-rose-200 hover:bg-rose-500/20 hover:shadow-[0_0_12px_rgba(244,63,94,0.3)] rounded-lg transition-all duration-150 p-1.5 cursor-pointer focus:outline-none"
+                                >
+                                  <X className="h-5 w-5 stroke-[2.5]" />
+                                </button>
+                                <div
+                                  role="tooltip"
+                                  className="pointer-events-none absolute top-[calc(100%+0.55rem)] left-1/2 -translate-x-1/2 z-50 rounded-lg border border-rose-500/35 bg-[#0A1822]/95 backdrop-blur-xl px-2.5 py-1 text-[10px] font-semibold tracking-wide text-rose-200 opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.6),0_0_12px_rgba(244,63,94,0.25)] transition-all duration-150 group-hover/cancel:translate-y-0 group-hover/cancel:opacity-100 -translate-y-1 whitespace-nowrap flex items-center gap-1.5"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]" />
+                                  <span>Don't sync</span>
+                                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rotate-45 border-l border-t border-rose-500/35 bg-[#0A1822]" />
+                                </div>
+                              </div>
+
+                              {/* Correct Button: Confirm sync */}
+                              <div className="group/sync relative inline-flex items-center justify-center">
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    setCalendarSyncing(true);
+                                    setError("");
+
+                                    try {
+                                      if (authSession) {
+                                        const ok =
+                                          await syncCalendar(generatedExams);
+                                        if (ok) {
+                                          setHasCalendarScope(true);
+                                          closeSyncPrompt();
+                                          return;
+                                        }
+                                      }
+
+                                      const requireDrive =
+                                        routineSourceRef.current === "drive";
+                                      const popupResult =
+                                        await startGoogleSignInPopup({
+                                          requireDrive,
+                                        });
+
+                                      if (popupResult?.error) {
+                                        if (
+                                          popupResult.error.code ===
+                                          "POPUP_CLOSED"
+                                        ) {
+                                          return;
+                                        }
+                                        if (
+                                          popupResult.error.code ===
+                                          "POPUP_BLOCKED"
+                                        ) {
+                                          setError(
+                                            "Popup blocked. Please allow popups for ExamMate.",
+                                          );
+                                          return;
+                                        }
+                                        throw new Error(
+                                          popupResult.error.message ||
+                                            "Google authorization failed.",
+                                        );
+                                      }
+
+                                      const ok =
+                                        await syncCalendar(generatedExams);
+                                      if (ok) {
+                                        setHasCalendarScope(true);
+                                        closeSyncPrompt();
+                                      }
+                                    } catch (err) {
+                                      setError(
+                                        err instanceof Error
+                                          ? err.message
+                                          : "Calendar sync failed.",
+                                      );
+                                    } finally {
+                                      setCalendarSyncing(false);
+                                    }
+                                  }}
+                                  aria-label="Sync to Google Calendar"
+                                  className="flex items-center justify-center bg-transparent border-0 text-emerald-400 hover:text-emerald-200 hover:bg-emerald-500/20 hover:shadow-[0_0_12px_rgba(52,211,153,0.3)] rounded-lg transition-all duration-150 p-1.5 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <Check className="h-5 w-5 stroke-[2.5]" />
+                                </button>
+                                <div
+                                  role="tooltip"
+                                  className="pointer-events-none absolute top-[calc(100%+0.55rem)] left-1/2 -translate-x-1/2 z-50 rounded-lg border border-teal-400/35 bg-[#0A1822]/95 backdrop-blur-xl px-2.5 py-1 text-[10px] font-semibold tracking-wide text-teal-200 opacity-0 shadow-[0_8px_20px_rgba(0,0,0,0.6),0_0_12px_rgba(94,234,212,0.25)] transition-all duration-150 group-hover/sync:translate-y-0 group-hover/sync:opacity-100 -translate-y-1 whitespace-nowrap flex items-center gap-1.5"
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]" />
+                                  <span>Sync to Calendar</span>
+                                  <div className="absolute -top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rotate-45 border-l border-t border-teal-400/35 bg-[#0A1822]" />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                 </div>
-              </details>
-            ))}
-          </div>
-        </LazySection>
+                <div className="print-footer">ExamMate</div>
+              </>
+            )}
+          </LazySection>
+
+          {/* FAQ SECTION */}
+          <LazySection
+            id="faq"
+            className="order-6 w-full pt-8 flex flex-col gap-5"
+            minHeight="360px"
+          >
+            {/* Headline */}
+            <div className="flex items-end justify-between border-b border-teal-500/20 pb-3">
+              <div>
+                <span className="text-[11px] font-mono-code text-[#5EEAD4] uppercase tracking-widest block mb-1">
+                  FAQ
+                </span>
+                <h2 className="text-xl sm:text-2xl font-bold tracking-tight text-white font-tech">
+                  Questions students usually ask
+                </h2>
+              </div>
+              <div className="hidden sm:flex items-center gap-1 font-mono-code text-[11px] text-teal-400/60">
+                <span>[ // // // ]</span>
+              </div>
+            </div>
+
+            {/* Accordion-style vertical list of 4 questions */}
+            <div className="flex flex-col gap-3 p-2 -m-2 overflow-visible">
+              {faqItems.map((item) => (
+                <details
+                  key={item.question}
+                  className="group rounded-2xl glass-card border border-teal-500/20 overflow-hidden transition-all duration-300 ease-out hover:-translate-y-1 hover:border-teal-400/70 hover:bg-[#0c1f2b]/80 hover:shadow-[0_16px_36px_rgba(0,0,0,0.55),0_0_20px_rgba(94,234,212,0.16)] open:border-teal-400/60 open:bg-[#0c1f2a]/80 open:shadow-[0_14px_36px_rgba(0,0,0,0.55),0_0_18px_rgba(94,234,212,0.14)]"
+                >
+                  <summary className="flex items-center justify-between gap-4 p-4 sm:p-5 cursor-pointer text-sm font-medium text-white hover:text-teal-200 select-none transition-colors duration-150">
+                    <span className="font-medium text-white group-hover:text-teal-100 transition-colors duration-200">
+                      {item.question}
+                    </span>
+                    <ChevronDown className="w-5 h-5 text-teal-400/80 group-hover:text-teal-200 transition-all duration-300 group-open:rotate-180 shrink-0" />
+                  </summary>
+                  <div className="px-4 pb-4 sm:px-5 sm:pb-5 text-xs sm:text-[13px] text-slate-300/90 leading-relaxed border-t border-teal-500/15 pt-3.5">
+                    {item.answer}
+                  </div>
+                </details>
+              ))}
+            </div>
+          </LazySection>
         </main>
 
         {/* FOOTER */}
-        <LazySection as="footer" className="order-7 w-full pt-4 flex flex-col gap-4" minHeight="150px">
+        <LazySection
+          as="footer"
+          className="order-7 w-full pt-4 flex flex-col gap-4"
+          minHeight="150px"
+        >
           {/* Main Footer Row */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-teal-500/20 pb-4 text-center sm:text-left">
             {/* Left: ExamMate logo (using icon.svg) and short description */}
@@ -2734,19 +3477,29 @@ export default function Home() {
 
             {/* Right: Links for "Privacy Policy" and "Terms and Conditions" */}
             <div className="flex items-center gap-5 text-xs text-[#94A3B8]">
-              <a href="/privacy" className="hover:text-teal-300 transition-colors">
+              <Link
+                href="/privacy"
+                className="hover:text-teal-300 transition-colors"
+              >
                 Privacy Policy
-              </a>
-              <a href="/terms" className="hover:text-teal-300 transition-colors">
+              </Link>
+              <Link
+                href="/terms"
+                className="hover:text-teal-300 transition-colors"
+              >
                 Terms
-              </a>
+              </Link>
             </div>
           </div>
 
           {/* Centered credit line */}
           <div className="pb-1 text-center text-[11px] text-[#64748B]">
-            © {new Date().getFullYear()} ExamMate <span className="px-1.5 text-teal-500/60">·</span>
-            Made by <span className="font-medium text-[#94A3B8]">codewarrior-ahnaf</span>
+            © {new Date().getFullYear()} ExamMate{" "}
+            <span className="px-1.5 text-teal-500/60">·</span>
+            Made by{" "}
+            <span className="font-medium text-[#94A3B8]">
+              codewarrior-ahnaf
+            </span>
           </div>
         </LazySection>
       </div>
@@ -2754,40 +3507,75 @@ export default function Home() {
       <CustomScrollbar />
 
       {(message || error || savedNotice) && (
-        <div className="fixed bottom-5 right-5 z-50 flex w-[min(24rem,calc(100vw-2.5rem))] flex-col gap-2">
+        <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2.5 max-w-[calc(100vw-2rem)] pointer-events-none">
           {message && (
             <div
               role="status"
               aria-live="polite"
-              className="flex items-start gap-3 rounded-xl border border-emerald-300/30 bg-[#0c1f1a]/95 px-4 py-3 text-sm text-emerald-100 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+              className="pointer-events-auto w-fit max-w-[min(32rem,calc(100vw-2.5rem))] flex items-center gap-2.5 rounded-xl border border-emerald-400/30 bg-[#081A16]/95 backdrop-blur-2xl px-3.5 py-2.5 text-xs sm:text-sm font-medium text-emerald-100 shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_15px_rgba(16,185,129,0.15)] animate-in fade-in slide-in-from-bottom-2 duration-200"
             >
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-              <span>{message}</span>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
+                <Check className="h-3 w-3 stroke-[2.5]" />
+              </span>
+              <span className="text-left whitespace-normal break-words [overflow-wrap:anywhere]">
+                {message}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMessage("")}
+                aria-label="Dismiss message"
+                className="ml-1 -mr-1 p-0.5 text-emerald-400/60 hover:text-emerald-200 transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
           {error && (
             <div
               role="alert"
               aria-live="assertive"
-              className="flex min-w-0 items-start gap-3 rounded-xl border border-rose-300/35 bg-[#271416]/95 px-4 py-3 text-sm text-rose-100 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+              className="pointer-events-auto w-fit max-w-[min(32rem,calc(100vw-2.5rem))] flex items-start gap-2.5 rounded-xl border border-rose-400/35 bg-[#251016]/95 backdrop-blur-2xl px-3.5 py-2.5 text-xs sm:text-sm font-medium text-rose-100 shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_15px_rgba(244,63,94,0.15)] animate-in fade-in slide-in-from-bottom-2 duration-200"
             >
-              <Info className="mt-0.5 h-4 w-4 shrink-0 text-rose-300" />
-              <span className="min-w-0 flex-1 break-words [overflow-wrap:anywhere]">{error}</span>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500/20 text-rose-300 border border-rose-400/30 mt-0.5">
+                <Info className="h-3 w-3 stroke-[2.5]" />
+              </span>
+              <span className="min-w-0 flex-1 text-left whitespace-normal break-words [overflow-wrap:anywhere]">
+                {error}
+              </span>
+              <button
+                type="button"
+                onClick={() => setError("")}
+                aria-label="Dismiss error"
+                className="ml-1 -mr-1 p-0.5 text-rose-400/60 hover:text-rose-200 transition-colors cursor-pointer shrink-0 mt-0.5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
           {savedNotice && (
             <div
               role="status"
               aria-live="polite"
-              className="flex items-start gap-3 rounded-xl border border-teal-300/30 bg-[#0b1c20]/95 px-4 py-3 text-sm text-teal-100 shadow-[0_12px_40px_rgba(0,0,0,0.5)] backdrop-blur-xl"
+              className="pointer-events-auto w-fit max-w-[min(32rem,calc(100vw-2.5rem))] flex items-center gap-2.5 rounded-xl border border-teal-400/30 bg-[#08181F]/95 backdrop-blur-2xl px-3.5 py-2.5 text-xs sm:text-sm font-medium text-teal-100 shadow-[0_12px_36px_rgba(0,0,0,0.6),0_0_15px_rgba(20,184,166,0.15)] animate-in fade-in slide-in-from-bottom-2 duration-200"
             >
-              <Clock className="mt-0.5 h-4 w-4 shrink-0 text-teal-300" />
-              <span>{savedNotice}</span>
+              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-teal-500/20 text-teal-300 border border-teal-400/30">
+                <Clock className="h-3 w-3 stroke-[2.5]" />
+              </span>
+              <span className="text-left whitespace-normal break-words [overflow-wrap:anywhere]">
+                {savedNotice}
+              </span>
+              <button
+                type="button"
+                onClick={() => setSavedNotice("")}
+                aria-label="Dismiss notice"
+                className="ml-1 -mr-1 p-0.5 text-teal-400/60 hover:text-teal-200 transition-colors cursor-pointer shrink-0"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
         </div>
       )}
-
     </div>
   );
 }

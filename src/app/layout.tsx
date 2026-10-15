@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./global.css";
+import { WebsiteLoader } from "./website-loader";
 
 export const viewport: Viewport = {
   themeColor: "#0A1118",
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
   title: "ExamMate | Build your exam table in minutes",
   applicationName: "ExamMate",
   description:
-    "Upload your routine, match your courses, and build a clean exam table in minutes.",
+    "Find your exact exam dates and times from the official university routine. Export a clean schedule or sync with Google Calendar in seconds.",
   icons: {
     icon: "/icon.svg",
     shortcut: "/icon.svg",
@@ -28,24 +29,37 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <link rel="icon" href="/icon.svg" type="image/svg+xml" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap"
+        />
         <script
           dangerouslySetInnerHTML={{
-            __html: `(function(){var l=document.createElement('link');l.rel='stylesheet';l.href='https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';document.head.appendChild(l);})();`,
+            __html: `
+              try {
+                var p = window.location.pathname;
+                var nav = window.performance && window.performance.getEntriesByType && window.performance.getEntriesByType('navigation')[0];
+                var isReload = nav && nav.type === 'reload';
+                var conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+                var isSlow = conn && (conn.saveData || conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g' || conn.effectiveType === '3g');
+                if ((isReload || isSlow) && p === '/') {
+                  document.documentElement.classList.add('app-loading');
+                }
+              } catch (e) {}
+            `,
           }}
         />
-        <noscript>
-          <link
-            rel="stylesheet"
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-          />
-        </noscript>
       </head>
-      <body>{children}</body>
+      <body>
+        <WebsiteLoader />
+        {children}
+      </body>
     </html>
   );
 }
+

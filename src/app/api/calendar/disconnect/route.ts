@@ -18,24 +18,20 @@ export async function POST(request: Request) {
     const accounts = await auth.api.listUserAccounts({ headers: requestHeaders });
     const googleAccount = accounts.find((account) => account.providerId === "google");
     if (googleAccount) {
-      const token = await auth.api.getAccessToken({
-        body: { accountId: googleAccount.id },
-        headers: requestHeaders,
-      });
-      const revokeResponse = await fetch("https://oauth2.googleapis.com/revoke", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ token: token.accessToken }),
-      });
-
-      if (!revokeResponse.ok) {
-        const details = await revokeResponse.json().catch(() => ({})) as { error?: string };
-        if (details.error !== "invalid_token") {
-          return NextResponse.json(
-            { error: "Google could not revoke Calendar access. Please try disconnecting again." },
-            { status: 502 }
-          );
+      try {
+        const token = await auth.api.getAccessToken({
+          body: { accountId: googleAccount.id },
+          headers: requestHeaders,
+        });
+        if (token?.accessToken) {
+          await fetch("https://oauth2.googleapis.com/revoke", {
+            method: "POST",
+            headers: { "Content-Type": "application/x-www-form-urlencoded" },
+            body: new URLSearchParams({ token: token.accessToken }),
+          });
         }
+      } catch {
+        // Even if token was already expired or revoked with Google, continue to disconnect locally
       }
     }
 

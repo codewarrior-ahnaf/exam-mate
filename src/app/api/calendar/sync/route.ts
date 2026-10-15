@@ -115,12 +115,12 @@ export async function POST(request: Request) {
   const rateLimit = checkRateLimit(`calendar_sync:${clientIp}`, 25, 60 * 1000);
   if (!rateLimit.allowed) {
     return NextResponse.json(
-      { error: "Too many calendar sync requests. Please wait a moment before trying again." },
+      { error: "Too many requests. Please wait a moment." },
       { status: 429 }
     );
   }
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) {
-    return NextResponse.json({ error: "Send the schedule as JSON." }, { status: 415 });
+    return NextResponse.json({ error: "Invalid content type." }, { status: 415 });
   }
 
   let session;
@@ -131,14 +131,14 @@ export async function POST(request: Request) {
     if (session) accounts = await auth.api.listUserAccounts({ headers: requestHeaders });
   } catch {
     return NextResponse.json(
-      { error: "The server could not verify your Google connection. Check the auth and database setup, then try again." },
+      { error: "Could not verify Google connection." },
       { status: 503 }
     );
   }
-  if (!session) return NextResponse.json({ error: "Connect Google to sync your schedule." }, { status: 401 });
+  if (!session) return NextResponse.json({ error: "Connect Google to sync schedule." }, { status: 401 });
 
   const googleAccount = accounts?.find((account) => account.providerId === "google");
-  if (!googleAccount) return NextResponse.json({ error: "Connect your Google account first." }, { status: 400 });
+  if (!googleAccount) return NextResponse.json({ error: "Connect Google account first." }, { status: 400 });
 
   let exams: Exam[];
   try {
@@ -159,7 +159,7 @@ export async function POST(request: Request) {
       !isValidIsoDate(exam.date) || !isValidTime(exam.startTime) || !isValidTime(exam.endTime)
     )) throw new Error("Invalid exam list.");
   } catch {
-    return NextResponse.json({ error: "The exam schedule is invalid." }, { status: 400 });
+    return NextResponse.json({ error: "Exam schedule is invalid." }, { status: 400 });
   }
   if (!exams.length) return NextResponse.json({ synced: 0 });
 
@@ -172,16 +172,32 @@ export async function POST(request: Request) {
     )
   ) {
     return NextResponse.json(
-      { error: "Sample preview routines cannot be synced to Google Calendar." },
+      { error: "Sample routines cannot sync to Google Calendar." },
       { status: 400 }
     );
   }
 
+  let token;
   try {
-    const token = await auth.api.getAccessToken({
+    token = await auth.api.getAccessToken({
       body: { accountId: googleAccount.id },
       headers: await headers(),
     });
+  } catch {
+    return NextResponse.json(
+      { error: "Google session expired. Please reconnect Google from navbar." },
+      { status: 401 }
+    );
+  }
+
+  if (!token?.accessToken) {
+    return NextResponse.json(
+      { error: "Google session expired. Please reconnect Google from navbar." },
+      { status: 401 }
+    );
+  }
+
+  try {
     let synced = 0;
     for (const exam of exams) {
       const start = `${exam.date}T${exam.startTime}:00+06:00`;
@@ -211,21 +227,17 @@ export async function POST(request: Request) {
       if (!response.ok) {
         const details = await response.json().catch(() => ({})) as { error?: { message?: string; status?: string } };
         const providerMessage = details.error?.message ?? "";
-        const projectId = providerMessage.match(/project\s+(\d+)/i)?.[1];
         if (details.error?.status === "SERVICE_DISABLED" || /has not been used|is disabled/i.test(providerMessage)) {
-          const enableUrl = projectId
-            ? `https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=${projectId}`
-            : "https://console.cloud.google.com/apis/library/calendar-json.googleapis.com";
           return NextResponse.json({
-            error: `Google Calendar API is disabled for this project. Enable it here: ${enableUrl}. Wait a few minutes, then sync again.`,
+            error: "Google Calendar API disabled for this project.",
           }, { status: 502 });
         }
         if (/insufficient|scope|permission_denied/i.test(providerMessage) || details.error?.status === "PERMISSION_DENIED") {
           return NextResponse.json({
-            error: "Google Calendar permission was not granted. Please disconnect and reconnect Google, and make sure to tick 'Select all' (or Calendar access) on the Google permission screen.",
+            error: "Calendar permission denied. Please allow Calendar access.",
           }, { status: 403 });
         }
-        return NextResponse.json({ error: providerMessage || "Google Calendar could not save an event. Please reconnect Google and try again." }, { status: 502 });
+        return NextResponse.json({ error: providerMessage || "Could not save calendar event. Please retry." }, { status: 502 });
       }
       synced += 1;
     }
