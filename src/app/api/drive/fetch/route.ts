@@ -501,7 +501,7 @@ async function downloadViaGoogleDriveApi(
           if (msg.includes("Google Drive API has not been used") || msg.includes("is not enabled")) {
             capturedError = "Google Drive API is not enabled in your Google Cloud project. Please enable Google Drive API in Google Cloud Console.";
           } else if (msg.toLowerCase().includes("insufficient") || msg.toLowerCase().includes("scope")) {
-            capturedError = "Google Drive permission is missing. Please disconnect and reconnect Google to grant Drive access.";
+            capturedError = "Google Drive access was not granted. When Google sign-in opens, please tick 'Select all' (or Google Drive permission) so ExamMate can access your routine.";
           } else if (res.status === 404 || msg.toLowerCase().includes("not found")) {
             capturedError = "File not found or your connected Google account does not have permission to view it. Make sure you connect with your Southeast University (@seu.edu.bd) account.";
           }

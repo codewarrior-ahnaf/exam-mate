@@ -3,6 +3,7 @@ import "server-only";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { betterAuth } from "better-auth";
+import { oauthPopup } from "better-auth/plugins";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { MongoClient } from "mongodb";
 
@@ -118,6 +119,7 @@ export const auth = betterAuth({
   appName: "SEU Exam Routine",
   baseURL,
   secret,
+  plugins: [oauthPopup()],
   account: {
     encryptOAuthTokens: true,
     updateAccountOnSignIn: true,
@@ -162,6 +164,7 @@ export const auth = betterAuth({
       clientId: googleClientId,
       clientSecret: googleClientSecret,
       accessType: "offline",
+      prompt: "select_account consent",
       scope: [
         "openid",
         "email",

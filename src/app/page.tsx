@@ -184,7 +184,7 @@ const GOOGLE_DRIVE_SCOPES = [
   "https://www.googleapis.com/auth/drive.readonly",
 ];
 
-async function startGoogleSignIn(options?: { requireDrive?: boolean }) {
+async function startGoogleSignIn(options?: { requireDrive?: boolean; forceConsent?: boolean }) {
   const scopes = options?.requireDrive ? GOOGLE_DRIVE_SCOPES : GOOGLE_BASE_SCOPES;
   return authClient.signIn.social({
     provider: "google",
@@ -193,8 +193,16 @@ async function startGoogleSignIn(options?: { requireDrive?: boolean }) {
     scopes,
     additionalParams: {
       access_type: "offline",
-      prompt: "select_account consent",
+      prompt: options?.forceConsent ? "select_account consent" : "select_account",
     },
+  });
+}
+
+async function startGoogleSignInPopup(options?: { requireDrive?: boolean }) {
+  const scopes = options?.requireDrive ? GOOGLE_DRIVE_SCOPES : GOOGLE_BASE_SCOPES;
+  return (authClient.signIn as any).popup({
+    provider: "google",
+    scopes,
   });
 }
 
@@ -386,18 +394,38 @@ export default function Home() {
   const [recentLinks, setRecentLinks] = useState<string[]>([]);
   const [showLinkPopup, setShowLinkPopup] = useState(false);
   const [showCalendarSyncPrompt, setShowCalendarSyncPrompt] = useState(false);
+  const [hasCalendarScope, setHasCalendarScope] = useState(false);
   const linkBoxRef = useRef<HTMLDivElement>(null);
   const linkPopupRef = useRef<HTMLDivElement>(null);
   const routineSourceRef = useRef<"excel" | "drive" | "sample">("excel");
 
-  // Auto-dismiss the sync prompt after 8 seconds (toast-like) defaulting to no sync
   useEffect(() => {
-    if (!showCalendarSyncPrompt) return;
+    if (!authSession) {
+      setHasCalendarScope(false);
+      return;
+    }
+    let isCancelled = false;
+    void fetch("/api/calendar/sync")
+      .then((res) => res.json())
+      .then((data: { hasCalendarScope?: boolean }) => {
+        if (!isCancelled && data && typeof data.hasCalendarScope === "boolean") {
+          setHasCalendarScope(data.hasCalendarScope);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isCancelled = true;
+    };
+  }, [authSession]);
+
+  // Auto-dismiss the sync prompt after 20 seconds (toast-like) defaulting to no sync
+  useEffect(() => {
+    if (!showCalendarSyncPrompt || calendarSyncing) return;
     const timer = window.setTimeout(() => {
       setShowCalendarSyncPrompt(false);
-    }, 8000);
+    }, 20000);
     return () => window.clearTimeout(timer);
-  }, [showCalendarSyncPrompt]);
+  }, [showCalendarSyncPrompt, calendarSyncing]);
 
   const selectedCourseCodes = useMemo(() => {
     return Array.from(
@@ -433,6 +461,10 @@ export default function Home() {
       if (pendingCourses) setCourseInput(pendingCourses);
       const pendingLink = window.sessionStorage.getItem("examMate:pendingDriveLink");
       if (pendingLink) setDriveLink(pendingLink);
+      const savedSource = window.sessionStorage.getItem("examMate:routineSource");
+      if (savedSource === "drive" || savedSource === "excel" || savedSource === "sample") {
+        routineSourceRef.current = savedSource;
+      }
 
       const raw = window.localStorage.getItem(ROUTINE_STORAGE_KEY);
       if (!raw) return;
@@ -494,6 +526,13 @@ export default function Home() {
         if (pendingCourses) {
           setCourseInput(pendingCourses);
         }
+        // Direct smooth scroll to the results table section immediately
+        window.setTimeout(() => {
+          const resultsEl = document.getElementById("results");
+          if (resultsEl) {
+            resultsEl.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 100);
         window.setTimeout(() => {
           void handleGenerate(pendingLink, pendingCourses || undefined);
         }, 350);
@@ -639,8 +678,8 @@ export default function Home() {
     }
   }
 
-  async function syncCalendar(exams = generatedExams) {
-    if (!authSession || !exams.length || isSampleRoutine || routineSourceRef.current === "sample") return;
+  async function syncCalendar(exams = generatedExams): Promise<boolean> {
+    if (!exams.length || isSampleRoutine || routineSourceRef.current === "sample") return false;
     setCalendarSyncing(true);
     try {
       const response = await fetch("/api/calendar/sync", {
@@ -659,11 +698,20 @@ export default function Home() {
             : `Calendar sync failed with a server error (${response.status}). Please try again later.`
         );
       }
-      if (!response.ok) throw new Error(result.error || "Could not sync Google Calendar.");
-      setMessage(`${result.synced ?? exams.length} exam${(result.synced ?? exams.length) === 1 ? "" : "s"} synced to Google Calendar with 24-hour reminders.`);
+      if (!response.ok) {
+        const err = new Error(result.error || "Could not sync Google Calendar.");
+        (err as any).status = response.status;
+        throw err;
+      }
+      setHasCalendarScope(true);
+      setMessage(
+        `${result.synced ?? exams.length} exam${(result.synced ?? exams.length) === 1 ? "" : "s"} synced to Google Calendar with reminders (9:00 AM & 8:00 PM the day before).`
+      );
+      return true;
     } catch (syncError) {
       lastCalendarSyncRef.current = "";
       setError(syncError instanceof Error ? syncError.message : "Could not sync Google Calendar.");
+      return false;
     } finally {
       setCalendarSyncing(false);
     }
@@ -676,6 +724,7 @@ export default function Home() {
       const pendingSync = window.sessionStorage.getItem("examMate:pendingCalendarSync");
       if (pendingSync === "true") {
         window.sessionStorage.removeItem("examMate:pendingCalendarSync");
+        setShowCalendarSyncPrompt(false);
         if (lastCalendarSyncRef.current !== syncKey) {
           lastCalendarSyncRef.current = syncKey;
           void syncCalendar(generatedExams);
@@ -932,7 +981,7 @@ export default function Home() {
             await authClient.signOut();
           }
           setGoogleLoading(true);
-          setMessage("Redirecting to Google to connect your varsity email (@seu.edu.bd)…");
+          setMessage("Redirecting to Google to connect your varsity email (@seu.edu.bd)… On Google's screen, please check 'Select all' to grant Drive & Calendar access.");
           await startGoogleSignIn({ requireDrive: true });
           return;
         } catch (signInErr) {
@@ -1027,12 +1076,34 @@ export default function Home() {
       );
     } else if (link) {
       routineSourceRef.current = "drive";
-      setShowCalendarSyncPrompt(true);
-      setMessage(
-        `${matches.length} exam${matches.length > 0 ? "s" : ""} generated! ${
-          unmatched.length ? `Unmatched: ${unmatched.join(", ")}.` : ""
-        }`
-      );
+      try {
+        window.sessionStorage.setItem("examMate:routineSource", "drive");
+      } catch {
+        // ignore
+      }
+      let calendarAlreadyGranted = false;
+      try {
+        const statusRes = await fetch("/api/calendar/sync");
+        if (statusRes.ok) {
+          const statusData = (await statusRes.json()) as { hasCalendarScope?: boolean };
+          calendarAlreadyGranted = Boolean(statusData.hasCalendarScope);
+        }
+      } catch {
+        // ignore
+      }
+
+      setHasCalendarScope(calendarAlreadyGranted);
+      if (calendarAlreadyGranted) {
+        setShowCalendarSyncPrompt(false);
+        void syncCalendar(matches);
+      } else {
+        setShowCalendarSyncPrompt(true);
+        setMessage(
+          `${matches.length} exam${matches.length > 0 ? "s" : ""} generated! ${
+            unmatched.length ? `Unmatched: ${unmatched.join(", ")}.` : ""
+          }`
+        );
+      }
     } else {
       routineSourceRef.current = "excel";
       setShowCalendarSyncPrompt(false);
@@ -1045,10 +1116,12 @@ export default function Home() {
     setGenerating(false);
 
     // Scroll to results table section
-    const resultsElement = document.getElementById("results");
-    if (resultsElement) {
-      resultsElement.scrollIntoView({ behavior: "smooth" });
-    }
+    window.setTimeout(() => {
+      const resultsElement = document.getElementById("results");
+      if (resultsElement) {
+        resultsElement.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    }, 100);
   }
 
   function handleLoadSample() {
@@ -1081,6 +1154,7 @@ export default function Home() {
   function clearSavedRoutine() {
     lastCalendarSyncRef.current = "";
     setShowCalendarSyncPrompt(false);
+    setHasCalendarScope(false);
     setIsSampleRoutine(false);
     setGeneratedExams([]);
     setCourseInput("");
@@ -1089,9 +1163,10 @@ export default function Home() {
     setDriveLink("");
     setShowLinkPopup(false);
     setAllExams([]);
-    if (inputRef.current) inputRef.current.value = "";
+    routineSourceRef.current = "excel";
     try {
       window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
+      window.sessionStorage.removeItem("examMate:routineSource");
     } catch {
       // ignore
     }
@@ -1756,7 +1831,7 @@ export default function Home() {
                         <Upload className="w-5 h-5" />
                       )}
                     </div>
-                    <span className="text-xs font-semibold text-white max-w-[280px] truncate">
+                    <span className={`text-xs font-semibold text-white px-2 ${isFileUploaded ? "max-w-[320px] truncate" : "max-w-none text-center"}`}>
                       {isRealRoutineGenerated
                         ? "Upload disabled (routine table generated) — clear data to upload"
                         : isLinkActive
@@ -2004,7 +2079,7 @@ export default function Home() {
               </div>
 
               {/* Removable course-code chips and entry field */}
-              <div className="flex flex-col gap-1.5">
+              <div className={`flex flex-col gap-1.5 ${isCourseInputDisabled ? "cursor-not-allowed" : ""}`}>
                 <label
                   htmlFor="course-codes"
                   className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
@@ -2013,10 +2088,10 @@ export default function Home() {
                 </label>
                 <div
                   onContextMenu={(e) => e.preventDefault()}
-                  className={`flex min-h-12 flex-wrap items-center gap-2 rounded-xl glass-card border px-3 py-2 transition-all ${
+                  className={`flex min-h-12 flex-wrap items-center gap-2 rounded-xl border px-3 py-2 transition-all ${
                     isCourseInputDisabled
-                      ? "opacity-40 cursor-not-allowed border-slate-700 bg-slate-950/40"
-                      : "border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
+                      ? "opacity-40 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
+                      : "glass-card border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400"
                   }`}
                 >
                   {selectedCourseCodes.map((code) => (
@@ -2540,20 +2615,42 @@ export default function Home() {
                             type="button"
                             disabled={calendarSyncing}
                             onClick={async () => {
-                              if (!authSession) {
-                                try {
-                                  window.sessionStorage.setItem("examMate:pendingCalendarSync", "true");
-                                  setGoogleLoading(true);
-                                  const requireDrive = routineSourceRef.current === "drive";
-                                  await startGoogleSignIn({ requireDrive });
-                                } catch (err) {
-                                  setError(err instanceof Error ? err.message : "Could not start Google sign in.");
-                                  setGoogleLoading(false);
+                              setCalendarSyncing(true);
+                              setError("");
+
+                              const requireDrive = routineSourceRef.current === "drive";
+
+                              try {
+                                if (authSession && hasCalendarScope) {
+                                  const ok = await syncCalendar(generatedExams);
+                                  if (ok) {
+                                    setShowCalendarSyncPrompt(false);
+                                  }
+                                  return;
                                 }
-                                return;
+
+                                const popupResult = await startGoogleSignInPopup({ requireDrive });
+
+                                if (popupResult?.error) {
+                                  if (popupResult.error.code === "POPUP_CLOSED") {
+                                    return;
+                                  }
+                                  if (popupResult.error.code === "POPUP_BLOCKED") {
+                                    setError("Popup was blocked by your browser. Please allow popups for ExamMate to connect Google Calendar.");
+                                    return;
+                                  }
+                                  throw new Error(popupResult.error.message || "Google authorization could not be completed.");
+                                }
+
+                                const ok = await syncCalendar(generatedExams);
+                                if (ok) {
+                                  setShowCalendarSyncPrompt(false);
+                                }
+                              } catch (err) {
+                                setError(err instanceof Error ? err.message : "Could not complete Calendar sync.");
+                              } finally {
+                                setCalendarSyncing(false);
                               }
-                              setShowCalendarSyncPrompt(false);
-                              await syncCalendar(generatedExams);
                             }}
                             aria-label="Sync to Google Calendar"
                             className="flex items-center justify-center bg-transparent border-0 text-emerald-400 hover:text-emerald-300 hover:scale-125 transition-transform p-1 cursor-pointer focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"

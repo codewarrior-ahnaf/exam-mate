@@ -302,7 +302,7 @@ textarea,
   transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.glass-card:hover {
+.glass-card:not(.cursor-not-allowed):not([disabled]):hover {
   position: relative;
   z-index: 10;
   border-color: rgba(94, 234, 212, 0.75) !important;
@@ -312,6 +312,14 @@ textarea,
     inset 0 1px 0 rgba(255, 255, 255, 0.2),
     inset 0 0 16px rgba(94, 234, 212, 0.1) !important;
   transform: translateY(-4px) scale(1.012);
+}
+
+.cursor-not-allowed,
+.cursor-not-allowed:hover,
+[disabled],
+[disabled]:hover {
+  transform: none !important;
+  box-shadow: none !important;
 }
 
 /* Neon buttons & hovers */

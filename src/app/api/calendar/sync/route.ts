@@ -71,6 +71,41 @@ function computeExamReminders(examDate: string, startTime: string): { method: st
   return overrides;
 }
 
+export async function GET() {
+  try {
+    const requestHeaders = await headers();
+    const session = await auth.api.getSession({ headers: requestHeaders });
+    if (!session) {
+      return NextResponse.json({ connected: false, hasCalendarScope: false });
+    }
+    const accounts = await auth.api.listUserAccounts({ headers: requestHeaders });
+    const googleAccount = accounts?.find((account) => account.providerId === "google");
+    if (!googleAccount) {
+      return NextResponse.json({ connected: false, hasCalendarScope: false });
+    }
+    const token = await auth.api.getAccessToken({
+      body: { accountId: googleAccount.id },
+      headers: requestHeaders,
+    });
+    if (!token?.accessToken) {
+      return NextResponse.json({ connected: true, hasCalendarScope: false });
+    }
+    const infoRes = await fetch(
+      `https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=${token.accessToken}`,
+      { cache: "no-store" }
+    );
+    if (infoRes.ok) {
+      const data = (await infoRes.json()) as { scope?: string };
+      const scopes = data.scope ? data.scope.split(" ") : [];
+      const hasCalendarScope = scopes.some((s) => s.includes("calendar.events") || s.includes("calendar"));
+      return NextResponse.json({ connected: true, hasCalendarScope });
+    }
+    return NextResponse.json({ connected: true, hasCalendarScope: false });
+  } catch {
+    return NextResponse.json({ connected: false, hasCalendarScope: false });
+  }
+}
+
 export async function POST(request: Request) {
   if (!isTrustedMutationRequest(request)) {
     return NextResponse.json({ error: "Request origin is not allowed." }, { status: 403 });
@@ -184,6 +219,11 @@ export async function POST(request: Request) {
           return NextResponse.json({
             error: `Google Calendar API is disabled for this project. Enable it here: ${enableUrl}. Wait a few minutes, then sync again.`,
           }, { status: 502 });
+        }
+        if (/insufficient|scope|permission_denied/i.test(providerMessage) || details.error?.status === "PERMISSION_DENIED") {
+          return NextResponse.json({
+            error: "Google Calendar permission was not granted. Please disconnect and reconnect Google, and make sure to tick 'Select all' (or Calendar access) on the Google permission screen.",
+          }, { status: 403 });
         }
         return NextResponse.json({ error: providerMessage || "Google Calendar could not save an event. Please reconnect Google and try again." }, { status: 502 });
       }
