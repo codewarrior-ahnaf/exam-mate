@@ -2042,16 +2042,16 @@ export default function Home() {
   ];
 
   return (
-    <div className="min-h-screen text-[#E2E8F0] relative flex flex-col items-center justify-start selection:bg-teal-500/30 selection:text-teal-200">
+    <div className="min-h-screen w-full max-w-full overflow-x-hidden text-[#E2E8F0] relative flex flex-col items-center justify-start selection:bg-teal-500/30 selection:text-teal-200">
       {/* Background Ambience Glows */}
-      <div className="fixed inset-0 pointer-events-none z-0">
+      <div className="fixed inset-0 pointer-events-none z-0 overflow-hidden">
         <div className="absolute top-[8%] right-[12%] w-[38rem] h-[38rem] bg-teal-500/10 rounded-full blur-[140px]" />
         <div className="absolute top-[45%] left-[5%] w-[32rem] h-[32rem] bg-emerald-500/5 rounded-full blur-[120px]" />
         <div className="absolute bottom-[10%] right-[20%] w-[40rem] h-[30rem] bg-cyan-500/5 rounded-full blur-[140px]" />
       </div>
 
       {/* Main Container */}
-      <div className="relative z-10 w-full max-w-[1240px] px-3 pt-3 pb-16 flex flex-col gap-8 sm:px-6 sm:pt-4 sm:pb-20 sm:gap-10 lg:px-8">
+      <div className="relative z-10 w-full max-w-[1240px] px-3 pt-3 pb-16 flex flex-col gap-8 sm:px-6 sm:pt-4 sm:pb-20 sm:gap-10 lg:px-8 min-w-0">
         {/* NAVBAR */}
         <header className="order-1 z-20 w-full rounded-2xl glass-panel border border-teal-500/30 px-2.5 py-2 sm:px-4 sm:py-2.5 flex items-center justify-between gap-2 shadow-[0_8px_32px_rgba(0,0,0,0.5)]">
           {/* Left: icon.svg logo + ExamMate */}
@@ -2194,11 +2194,11 @@ export default function Home() {
         <main id="main-content" className="contents">
           {/* HERO SECTION */}
           <LazySection
-            className="order-2 relative w-full pt-2 lg:pt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start"
+            className="order-2 relative w-full pt-2 lg:pt-4 grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start min-w-0"
             minHeight="460px"
           >
             {/* Left Side: Headline, Subheadline, Buttons */}
-            <div className="lg:col-span-7 flex flex-col items-start gap-5">
+            <div className="lg:col-span-7 flex flex-col items-start gap-5 min-w-0">
               <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black uppercase tracking-tight text-white leading-[1.08] break-words">
                 BUILD YOUR EXAM
                 <br />
@@ -2224,9 +2224,9 @@ export default function Home() {
             </div>
 
             {/* Right Side: isometric schedule preview */}
-            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-6 relative w-full max-w-full overflow-visible py-3 sm:py-6">
+            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-6 relative w-full max-w-full overflow-hidden py-3 sm:py-6 min-w-0">
               {/* 3D Isometric Scene */}
-              <div className="iso-scene relative w-full max-w-[380px] h-[220px] flex items-center justify-center overflow-visible">
+              <div className="iso-scene relative w-full max-w-[min(380px,100%)] h-[220px] flex items-center justify-center">
                 {/* Lower ambient glow plate */}
                 <div className="iso-card-shadow absolute w-[260px] h-[150px] rounded-2xl bg-teal-500/20 border border-teal-400/40 shadow-[0_0_40px_rgba(94,234,212,0.3)] pointer-events-none" />
 
@@ -2320,12 +2320,12 @@ export default function Home() {
           {/* MAIN DASHBOARD */}
           <LazySection
             id="generator"
-            className="order-4 w-full pt-6"
+            className="order-4 w-full pt-6 min-w-0 max-w-full"
             minHeight="620px"
           >
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch min-w-0">
               {/* Left part of container */}
-              <div className="lg:col-span-8 glass-panel glass-panel--static rounded-2xl p-4 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+              <div className="lg:col-span-8 glass-panel glass-panel--static rounded-2xl p-4 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)] min-w-0">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-teal-500/20 pb-3">
                   <div className="flex items-center gap-3">
@@ -2924,7 +2924,7 @@ export default function Home() {
               </div>
 
               {/* Right part of container: Three feature glass cards (Time, Privacy, Calendar) */}
-              <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 lg:flex lg:flex-col gap-3 lg:justify-center">
+              <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 lg:flex lg:flex-col gap-3 lg:justify-center min-w-0">
                 {/* Card 1: Accurate Timetable */}
                 <div className="group flex flex-1 flex-col justify-center gap-1.5 rounded-2xl glass-panel border border-teal-500/25 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-200 hover:border-teal-400/60 hover:bg-[#0c1f2b]/80 hover:shadow-[0_12px_32px_rgba(0,0,0,0.5),0_0_20px_rgba(94,234,212,0.12)] sm:p-5 cursor-default">
                   <div className="flex items-center gap-2.5 text-white font-semibold text-sm transition-colors duration-200 group-hover:text-teal-200">
@@ -2973,7 +2973,7 @@ export default function Home() {
           {/* HOW IT WORKS (THE BLUEPRINT OF EXECUTION) */}
           <LazySection
             id="how-it-works"
-            className="order-3 w-full pt-8 flex flex-col gap-6"
+            className="order-3 w-full pt-8 flex flex-col gap-6 min-w-0 max-w-full"
             minHeight="420px"
           >
             {/* Headline */}
@@ -3156,7 +3156,7 @@ export default function Home() {
           {/* TABLE SECTION */}
           <LazySection
             id="results"
-            className="order-5 w-full pt-8 flex flex-col gap-4"
+            className="order-5 w-full pt-8 flex flex-col gap-4 min-w-0 max-w-full"
             minHeight="360px"
           >
             {/* Header */}
@@ -3231,7 +3231,7 @@ export default function Home() {
               <div
                 role="status"
                 aria-live="polite"
-                className="relative w-full rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)] animate-in fade-in duration-300"
+                className="relative w-full max-w-full min-w-0 rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)] animate-in fade-in duration-300"
               >
                 {/* Sweeping laser / scanner line across top */}
                 <div className="pointer-events-none absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#5EEAD4] to-transparent animate-shimmer" />
@@ -3377,7 +3377,7 @@ export default function Home() {
                 </div>
 
                 {/* Table Container with In-Table Frosted Glass Sync Overlay */}
-                <div className="relative w-full">
+                <div className="relative w-full max-w-full min-w-0">
                   {/* Sweeping laser line indicator while revealing rows */}
                   {isRevealingRows && (
                     <div className="pointer-events-none absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#5EEAD4] to-transparent animate-shimmer z-30" />
@@ -3654,7 +3654,7 @@ export default function Home() {
           {/* FAQ SECTION */}
           <LazySection
             id="faq"
-            className="order-6 w-full pt-8 flex flex-col gap-5"
+            className="order-6 w-full pt-8 flex flex-col gap-5 min-w-0 max-w-full"
             minHeight="360px"
           >
             {/* Headline */}
@@ -3697,7 +3697,7 @@ export default function Home() {
         {/* FOOTER */}
         <LazySection
           as="footer"
-          className="order-7 w-full pt-4 flex flex-col gap-4"
+          className="order-7 w-full pt-4 flex flex-col gap-4 min-w-0 max-w-full"
           minHeight="150px"
         >
           {/* Main Footer Row */}
