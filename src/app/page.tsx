@@ -1702,6 +1702,53 @@ export default function Home() {
     doc.save("ExamMate-Schedule.pdf");
   }
 
+  async function printPdf() {
+    if (!generatedExams.length) {
+      setError("Generate your routine before printing PDF.");
+      return;
+    }
+    try {
+      const doc = await buildPdfDocument();
+      doc.autoPrint();
+      const pdfBlob = doc.output("blob");
+      const pdfUrl = URL.createObjectURL(pdfBlob);
+
+      // Open exact styled PDF in print preview window
+      const printWin = window.open(pdfUrl, "_blank");
+      if (printWin) {
+        setTimeout(() => URL.revokeObjectURL(pdfUrl), 60000);
+      } else {
+        // Fallback for popup blocker: use invisible iframe
+        const iframe = document.createElement("iframe");
+        iframe.style.position = "fixed";
+        iframe.style.right = "0";
+        iframe.style.bottom = "0";
+        iframe.style.width = "0";
+        iframe.style.height = "0";
+        iframe.style.border = "0";
+        iframe.src = pdfUrl;
+        document.body.appendChild(iframe);
+        iframe.onload = () => {
+          setTimeout(() => {
+            try {
+              iframe.contentWindow?.focus();
+              iframe.contentWindow?.print();
+            } catch {
+              window.print();
+            } finally {
+              setTimeout(() => {
+                iframe.remove();
+                URL.revokeObjectURL(pdfUrl);
+              }, 60000);
+            }
+          }, 250);
+        };
+      }
+    } catch {
+      window.print();
+    }
+  }
+
   function fallbackExportPng() {
     const scale = 2;
     const width = 1100;
@@ -3168,7 +3215,7 @@ export default function Home() {
 
                   <button
                     type="button"
-                    onClick={() => window.print()}
+                    onClick={printPdf}
                     disabled={isRevealingRows}
                     className="no-print btn-ghost-glass flex-1 sm:flex-initial justify-center inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                   >

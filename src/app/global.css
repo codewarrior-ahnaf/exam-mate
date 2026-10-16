@@ -865,7 +865,9 @@ details > summary::-webkit-details-marker {
     break-inside: auto;
   }
 
-  #results > :not(.print-header):not(.print-table-wrapper):not(.print-footer) {
+  .no-print,
+  .results-heading,
+  .empty-results-panel {
     display: none !important;
   }
 
