@@ -1867,16 +1867,24 @@ export default function Home() {
     }
   }
 
-  const faqItems = [
+  const faqItems: { question: string; answer: React.ReactNode }[] = [
     {
       question: "Can I use ExamMate without an account?",
       answer:
         "Yes. You can upload your routine file, enter your course codes, and generate your personal exam schedule immediately without signing in or creating an account.",
     },
     {
-      question: "How does the Google Drive link import work?",
-      answer:
-        "Paste your shared Google Drive or Sheets link in Option 2. If the file requires institutional access (@seu.edu.bd), clicking Generate will prompt a secure one-click sign-in to read the routine and build your timetable automatically.",
+      question: "How does the Google Drive link import work & what permissions are requested?",
+      answer: (
+        <span className="space-y-2 block">
+          <span>
+            Paste your shared Google Drive or Sheets link in Option 2. If the routine spreadsheet requires institutional authorization (@seu.edu.bd), clicking Generate will prompt a secure Google sign-in requesting read-only access (<code className="text-teal-300 bg-teal-950/60 px-1 py-0.5 rounded border border-teal-500/20 text-[11px]">drive.readonly</code>) strictly to download that specific routine file.
+          </span>
+          <span className="block text-slate-400">
+            ExamMate accesses only the specific target file ID provided in the link. It never searches, browses, edits, or deletes any other files in your Google Drive, and the routine is parsed directly in browser memory with zero server storage.
+          </span>
+        </span>
+      ),
     },
     {
       question: "Which file formats can I upload?",
@@ -1884,14 +1892,55 @@ export default function Home() {
         "Excel files (.xlsx, .xls, .xlsm, .csv) and Google Drive links are fully supported. The parser automatically detects exam dates, shift times, course codes, titles, and faculty details.",
     },
     {
-      question: "What happens to my data and privacy?",
-      answer:
-        "Your routine is processed client-side in your browser and never stored on our servers. Generated schedules are saved locally on your device for 15 days for quick access and automatically expire afterwards.",
+      question: "Can I sync my schedule to Google Calendar?",
+      answer: (
+        <span className="space-y-2 block">
+          <span>
+            Yes. Connecting Google Calendar is completely optional. When you choose to sync your routine, ExamMate requests calendar event permission (<code className="text-teal-300 bg-teal-950/60 px-1 py-0.5 rounded border border-teal-500/20 text-[11px]">calendar.events</code>) solely to add your matched exam dates, shift times, and reminders directly to your primary calendar.
+          </span>
+          <span className="block text-slate-400">
+            ExamMate only creates new exam events for the courses you selected; it never reads, alters, or deletes any of your existing personal calendar events.
+          </span>
+        </span>
+      ),
     },
     {
-      question: "Can I sync my schedule to Google Calendar?",
-      answer:
-        "Yes. Connect Google to add all your exams directly to your primary calendar with course details and automatic reminders (at 8:00 PM the evening before and 9:00 AM on exam day).",
+      question: "How does ExamMate protect my data & Google user data?",
+      answer: (
+        <span className="space-y-2 block">
+          <span>
+            Your routine is processed client-side in your browser and never stored on our servers. Generated schedules are saved locally on your device for 15 days for quick access and automatically expire afterwards.
+          </span>
+          <span className="block text-slate-300">
+            ExamMate&apos;s use and transfer of information received from Google APIs to any other app will adhere to the{" "}
+            <a
+              href="https://developers.google.com/terms/api-services-user-data-policy"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-300 underline underline-offset-4 hover:text-teal-100 font-medium"
+            >
+              Google API Services User Data Policy
+            </a>
+            , including the Limited Use requirements. We never sell user data to third parties, nor do we use Google user data to train AI models. You can revoke access at any time via{" "}
+            <a
+              href="https://myaccount.google.com/permissions"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-teal-300 underline underline-offset-4 hover:text-teal-100 font-medium"
+            >
+              Google Account Security Settings
+            </a>
+            . For full details, see our{" "}
+            <Link
+              href="/privacy"
+              className="text-teal-300 underline underline-offset-4 hover:text-teal-100 font-medium"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </span>
+        </span>
+      ),
     },
   ];
 
@@ -2665,20 +2714,44 @@ export default function Home() {
                       )}
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={clearSavedRoutine}
-                      disabled={!hasDataToClear}
-                      title={
-                        !hasDataToClear
-                          ? "No routine data to clear"
-                          : "Clear all routine data"
-                      }
-                      className="btn-ghost-glass inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-mono-code disabled:opacity-35 disabled:cursor-not-allowed disabled:hover:border-teal-500/20 disabled:hover:bg-transparent transition-all"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-teal-400/70" />
-                      <span>Clear My Data</span>
-                    </button>
+                    <div className="group/clear relative inline-flex items-center">
+                      <button
+                        type="button"
+                        onClick={clearSavedRoutine}
+                        disabled={!hasDataToClear}
+                        aria-label={
+                          !hasDataToClear
+                            ? "No routine data to clear"
+                            : "Clear all routine data"
+                        }
+                        className="btn-ghost-glass inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-mono-code disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:border-teal-500/20 disabled:hover:bg-transparent transition-all"
+                      >
+                        <Trash2 className="w-3.5 h-3.5 text-teal-400/70" />
+                        <span>Clear My Data</span>
+                      </button>
+
+                      {/* Custom Glassmorphic Tooltip */}
+                      <div
+                        role="tooltip"
+                        className="pointer-events-none absolute bottom-[calc(100%+0.65rem)] left-1/2 -translate-x-1/2 z-50 w-max max-w-[min(20rem,calc(100vw-2.5rem))] translate-y-1 rounded-xl border border-teal-400/35 bg-[#0A1822]/95 backdrop-blur-xl px-3.5 py-1.5 text-xs font-medium text-teal-100 opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 group-hover/clear:translate-y-0 group-hover/clear:opacity-100 whitespace-nowrap"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                              !hasDataToClear
+                                ? "bg-teal-400/70 shadow-[0_0_6px_rgba(94,234,212,0.6)]"
+                                : "bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]"
+                            }`}
+                          />
+                          <span>
+                            {!hasDataToClear
+                              ? "No routine data to clear"
+                              : "Clear all routine data"}
+                          </span>
+                        </div>
+                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 border-r border-b border-teal-400/35 bg-[#0A1822]" />
+                      </div>
+                    </div>
                   </div>
 
                   {fileName && (
@@ -3194,7 +3267,7 @@ export default function Home() {
                               {formatTime(exam.endTime)}
                             </td>
                             <td className="py-3.5 px-4 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg font-sans font-bold text-xs tracking-wide bg-teal-500/20 border border-teal-400/30 text-teal-200 transition-all duration-200 group-hover/row:border-teal-300 group-hover/row:bg-teal-400/25 group-hover/row:shadow-[0_0_12px_rgba(94,234,212,0.3)]">
+                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg font-sans font-semibold text-xs tracking-wide bg-teal-500/15 border border-teal-500/25 text-teal-200">
                                 {exam.courseCode}
                               </span>
                             </td>
@@ -3219,9 +3292,8 @@ export default function Home() {
                           behavior: "smooth",
                         })
                       }
-                      aria-hidden="true"
+                      aria-label="Click or drag to view Faculty and details"
                       className="no-print pointer-events-auto cursor-pointer absolute right-0 top-0 bottom-0 w-12 sm:w-16 bg-gradient-to-l from-[#07131B]/95 via-[#07131B]/55 to-transparent z-20 flex items-center justify-end pr-2.5 rounded-r-2xl transition-opacity duration-300"
-                      title="Click or drag to view Faculty and details"
                     >
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#091A25]/90 border border-teal-400/50 text-teal-200 shadow-[0_0_14px_rgba(94,234,212,0.4)] hover:border-teal-300 hover:bg-[#0c2432] hover:text-white hover:shadow-[0_0_18px_rgba(94,234,212,0.5)] transition-all duration-200">
                         <ChevronRight className="w-4 h-4 animate-pulse" />
@@ -3238,9 +3310,8 @@ export default function Home() {
                           behavior: "smooth",
                         })
                       }
-                      aria-hidden="true"
+                      aria-label="Click or drag to view Date & Time"
                       className="no-print pointer-events-auto cursor-pointer absolute left-0 top-0 bottom-0 w-12 sm:w-16 bg-gradient-to-r from-[#07131B]/95 via-[#07131B]/55 to-transparent z-20 flex items-center justify-start pl-2.5 rounded-l-2xl transition-opacity duration-300"
-                      title="Click or drag to view Date & Time"
                     >
                       <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#091A25]/90 border border-teal-400/50 text-teal-200 shadow-[0_0_14px_rgba(94,234,212,0.4)] hover:border-teal-300 hover:bg-[#0c2432] hover:text-white hover:shadow-[0_0_18px_rgba(94,234,212,0.5)] transition-all duration-200">
                         <ChevronLeft className="w-4 h-4 animate-pulse" />
@@ -3429,7 +3500,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Accordion-style vertical list of 4 questions */}
+            {/* Accordion-style vertical list of questions */}
             <div className="flex flex-col gap-3 p-2 -m-2 overflow-visible">
               {faqItems.map((item) => (
                 <details
