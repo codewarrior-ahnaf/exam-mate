@@ -38,6 +38,19 @@ export function hasIncompleteTrailingDot(value: string): boolean {
   return trimmed.endsWith(".") || (trimmed.includes(".") && !/\.\d+/.test(trimmed));
 }
 
+export function isFullCourseCode(value: string): boolean {
+  if (!value) return false;
+  const trimmed = value.toString().trim();
+  if (hasIncompleteTrailingDot(trimmed)) return false;
+  const norm = normalizeCourseCode(trimmed);
+  // Must match full format with section (e.g. CSE181.5, MAT101.1):
+  // - at least 2 department letters
+  // - at least 2 course digits
+  // - optional lab suffix letter (e.g. L)
+  // - dot and section number digits
+  return /^[A-Z]{2,}\d{2,}[A-Z]?\.\d+$/.test(norm);
+}
+
 export function coursesMatch(query: string, routineCode: string): boolean {
   const qNorm = normalizeCourseCode(query);
   const rNorm = normalizeCourseCode(routineCode);

@@ -40,6 +40,7 @@ import {
   normalizeCourseCode,
   coursesMatch,
   hasIncompleteTrailingDot,
+  isFullCourseCode,
 } from "@/lib/date";
 import { parseExcelFile } from "@/lib/parsers/excel";
 import type { ParsedExam } from "@/lib/parsers/normalize";
@@ -313,7 +314,7 @@ function CustomScrollbar() {
 
   return (
     <div
-      className="custom-scrollbar fixed right-0 top-2 z-[60] flex h-[calc(100dvh-1rem)] w-3 justify-center"
+      className="custom-scrollbar fixed right-0 top-2 z-[60] hidden md:flex h-[calc(100dvh-1rem)] w-3 justify-center"
       onPointerDown={(event) => {
         if (event.target === thumbRef.current) {
           dragRef.current = {
@@ -424,6 +425,7 @@ export default function Home() {
   const [error, setError] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleDisconnecting, setGoogleDisconnecting] = useState(false);
   const [calendarSyncing, setCalendarSyncing] = useState(false);
   const [pngExporting, setPngExporting] = useState(false);
   const lastCalendarSyncRef = useRef("");
@@ -583,7 +585,7 @@ export default function Home() {
         courseInput
           .split(/[\n,]+/)
           .map((value) => value.trim().toUpperCase())
-          .filter((value) => Boolean(value) && !hasIncompleteTrailingDot(value))
+          .filter((value) => Boolean(value) && isFullCourseCode(value))
           .map((value) => normalizeCourseCode(value)),
       ),
     );
@@ -592,7 +594,7 @@ export default function Home() {
   const hasEnteredCourse =
     selectedCourseCodes.length > 0 ||
     Boolean(
-      courseDraft.trim() && !hasIncompleteTrailingDot(courseDraft.trim()),
+      courseDraft.trim() && isFullCourseCode(courseDraft.trim()),
     );
 
   const isGenerateDisabled =
@@ -1103,18 +1105,13 @@ export default function Home() {
   function addCourseCodes(value: string) {
     const rawTokens = value.split(/[\n,]+/);
     const validCodes: string[] = [];
-    let remainingDraft = "";
 
-    rawTokens.forEach((token, index) => {
+    rawTokens.forEach((token) => {
       const trimmed = token.trim().toUpperCase();
       if (!trimmed) return;
-      if (hasIncompleteTrailingDot(trimmed)) {
-        if (index === rawTokens.length - 1) {
-          remainingDraft = trimmed;
-        }
-        return;
+      if (isFullCourseCode(trimmed)) {
+        validCodes.push(normalizeCourseCode(trimmed));
       }
-      validCodes.push(normalizeCourseCode(trimmed));
     });
 
     if (validCodes.length) {
@@ -1122,8 +1119,13 @@ export default function Home() {
         new Set([...selectedCourseCodes, ...validCodes]),
       ).join(", ");
       setCourseInput(nextCodes);
+      setError("");
+    } else if (rawTokens.some((t) => t.trim())) {
+      setError(
+        "Incomplete course code! Please enter course code with section (e.g. CSE181.5).",
+      );
     }
-    setCourseDraft(remainingDraft);
+    setCourseDraft("");
   }
 
   function removeCourseCode(codeToRemove: string) {
@@ -1152,20 +1154,20 @@ export default function Home() {
         effectiveCourseSource
           .split(/[\n,]+/)
           .map((v) => v.trim().toUpperCase())
-          .filter((v) => Boolean(v) && !hasIncompleteTrailingDot(v))
+          .filter((v) => Boolean(v) && isFullCourseCode(v))
           .map((v) => normalizeCourseCode(v)),
       ),
     );
 
-    if (pendingDraft && !hasIncompleteTrailingDot(pendingDraft)) {
+    if (pendingDraft && isFullCourseCode(pendingDraft)) {
       const normalized = normalizeCourseCode(pendingDraft);
       if (!effectiveSelectedCodes.includes(normalized)) {
         effectiveSelectedCodes = [...effectiveSelectedCodes, normalized];
         const nextText = effectiveSelectedCodes.join(", ");
         setCourseInput(nextText);
-        setCourseDraft("");
       }
     }
+    setCourseDraft("");
 
     if (!effectiveSelectedCodes.length) {
       setError("Enter at least one course code.");
@@ -1327,13 +1329,46 @@ export default function Home() {
         setMessage(
           `${matches.length} exam${matches.length === 1 ? "" : "s"} generated (Sample Preview).`,
         );
-      } else if (link) {
+        return;
+      }
+
+      if (link) {
         routineSourceRef.current = "drive";
         try {
           window.sessionStorage.setItem("examMate:routineSource", "drive");
         } catch {
           // ignore
         }
+      } else {
+        routineSourceRef.current = "excel";
+      }
+
+      const isConnected = Boolean(authSession?.user);
+      const isVarsity = isConnected && isVarsityEmail(authSession?.user?.email);
+
+      // Scenario A: Connected with Personal Google OR Varsity Google that already has Calendar permission:
+      // -> Direct Auto-sync with connected Google Calendar! No popup prompt!
+      if (isConnected && (!isVarsity || hasCalendarScope)) {
+        setShowCalendarSyncPrompt(false);
+        setIsSyncPromptClosing(false);
+        if (syncPromptTimeoutRef.current) {
+          clearTimeout(syncPromptTimeoutRef.current);
+          syncPromptTimeoutRef.current = null;
+        }
+
+        setMessage(
+          `${matches.length} exam${matches.length === 1 ? "" : "s"} generated.${
+            unmatched.length ? ` Unmatched: ${unmatched.join(", ")}.` : ""
+          } Auto-syncing to Google Calendar…`,
+        );
+
+        window.setTimeout(() => {
+          void syncCalendar(matches);
+        }, 500);
+      } else if (isConnected && isVarsity && !hasCalendarScope) {
+        // Scenario B: Connected with Varsity Google, but only Drive access was granted (no calendar permission):
+        // Show in-table popup dialog asking if user wants to sync calendar.
+        // Clicking Yes will open the Google consent popup to grant calendar permission, then sync!
         setShowCalendarSyncPrompt(false);
         setIsSyncPromptClosing(false);
         if (syncPromptTimeoutRef.current) {
@@ -1343,27 +1378,27 @@ export default function Home() {
           setShowCalendarSyncPrompt(true);
           setIsSyncPromptClosing(false);
         }, 1200);
+
         setMessage(
           `${matches.length} exam${matches.length === 1 ? "" : "s"} generated.${
             unmatched.length ? ` Unmatched: ${unmatched.join(", ")}.` : ""
           }`,
         );
       } else {
-        routineSourceRef.current = "excel";
+        // Scenario C: Google is NOT connected at all:
+        // No in-table popup dialog! Navbar Google Connect button remains ready and active for the user.
         setShowCalendarSyncPrompt(false);
         setIsSyncPromptClosing(false);
+        if (syncPromptTimeoutRef.current) {
+          clearTimeout(syncPromptTimeoutRef.current);
+          syncPromptTimeoutRef.current = null;
+        }
+
         setMessage(
           `${matches.length} exam${matches.length === 1 ? "" : "s"} generated.${
             unmatched.length ? ` Unmatched: ${unmatched.join(", ")}.` : ""
           }`,
         );
-
-        // Auto-sync with connected Google Calendar if user is already connected
-        if (authSession?.user) {
-          window.setTimeout(() => {
-            void syncCalendar(matches);
-          }, 500);
-        }
       }
     };
 
@@ -1454,15 +1489,28 @@ export default function Home() {
     setDriveLink("");
     setShowLinkPopup(false);
     setAllExams([]);
+    setRestrictedDriveFileId("");
+    setRequiresGoogleAuth(false);
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
     routineSourceRef.current = "excel";
     try {
-      window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
-      window.sessionStorage.removeItem("examMate:routineSource");
+      if (typeof window !== "undefined") {
+        window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
+        window.localStorage.removeItem("examMate:routine:v1");
+        window.localStorage.removeItem("examMate:savedDriveLink");
+        window.sessionStorage.removeItem("examMate:routineSource");
+        window.sessionStorage.removeItem("examMate:pendingDriveLink");
+        window.sessionStorage.removeItem("examMate:pendingCourses");
+        window.sessionStorage.removeItem("examMate:pendingCalendarSync");
+        window.sessionStorage.removeItem("examMate:justConnectedGoogle");
+      }
     } catch {
       // ignore
     }
     setSavedNotice("");
-    setMessage("Routine data cleared.");
+    setMessage("Routine data and browser cache cleared.");
   }
 
   async function handleGoogleConnect() {
@@ -1525,6 +1573,7 @@ export default function Home() {
   }
 
   async function handleGoogleDisconnect() {
+    setGoogleDisconnecting(true);
     setGoogleLoading(true);
     setError("");
     try {
@@ -1556,6 +1605,7 @@ export default function Home() {
           : "Google disconnect failed.",
       );
     } finally {
+      setGoogleDisconnecting(false);
       setGoogleLoading(false);
     }
   }
@@ -2002,20 +2052,35 @@ export default function Home() {
                       : "Generate a routine before connecting Google"
               }
               className={`google-connect-button group ${
-                isSampleRoutine
-                  ? "google-connect-button--disabled opacity-40 cursor-not-allowed"
-                  : authSession
-                    ? "google-connect-button--connected"
+                authSession
+                  ? `google-connect-button--connected ${
+                      isSampleRoutine ? "opacity-50 cursor-not-allowed" : ""
+                    }`
+                  : isSampleRoutine
+                    ? "google-connect-button--disabled google-connect-button--connect opacity-40 cursor-not-allowed"
                     : isRealRoutineGenerated || isLinkActive
                       ? "google-connect-button--ready google-connect-button--connect"
                       : "google-connect-button--disabled google-connect-button--connect opacity-50 cursor-not-allowed"
-              }`}
+              } ${googleLoading || calendarSyncing ? "google-connect-button--loading" : ""}`}
             >
               {googleLoading || calendarSyncing ? (
-                <LoaderCircle className="h-5 w-5 animate-spin text-teal-300" />
+                <svg
+                  aria-hidden="true"
+                  className="google-official-spinner shrink-0"
+                  viewBox="0 0 50 50"
+                >
+                  <circle
+                    className="google-official-spinner-path"
+                    cx="25"
+                    cy="25"
+                    r="20"
+                    fill="none"
+                    strokeWidth="4.5"
+                  />
+                </svg>
               ) : (
                 <img
-                  src="/google-logo.svg"
+                  src="/google-logo.png"
                   alt=""
                   aria-hidden="true"
                   width="19"
@@ -2023,11 +2088,19 @@ export default function Home() {
                   className="google-connect-logo shrink-0"
                 />
               )}
-              {!authSession && (
-                <span className="whitespace-nowrap text-[11px] font-medium tracking-wide sm:text-[13px]">
-                  Connect Google
-                </span>
-              )}
+              <span
+                className={`google-connect-label text-[11px] sm:text-[13px] font-medium tracking-normal ${
+                  authSession ? "pointer-events-none" : ""
+                }`}
+              >
+                {calendarSyncing
+                  ? "Syncing..."
+                  : googleDisconnecting
+                    ? "Disconnecting..."
+                    : googleLoading && !authSession
+                      ? "Connecting..."
+                      : "Connect Google"}
+              </span>
             </button>
             <div
               role="tooltip"
@@ -2079,7 +2152,7 @@ export default function Home() {
           >
             {/* Left Side: Headline, Subheadline, Buttons */}
             <div className="lg:col-span-7 flex flex-col items-start gap-5">
-              <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black uppercase tracking-tight text-white leading-[1.08]">
+              <h1 className="text-3xl sm:text-5xl lg:text-[54px] font-black uppercase tracking-tight text-white leading-[1.08] break-words">
                 BUILD YOUR EXAM
                 <br />
                 TABLE <span className="text-neon-mint">IN MINUTES</span>
@@ -2104,9 +2177,9 @@ export default function Home() {
             </div>
 
             {/* Right Side: isometric schedule preview */}
-            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-6 relative">
+            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-6 relative w-full max-w-full overflow-visible py-3 sm:py-6">
               {/* 3D Isometric Scene */}
-              <div className="iso-scene relative w-full max-w-[380px] h-[210px] flex items-center justify-center">
+              <div className="iso-scene relative w-full max-w-[380px] h-[220px] flex items-center justify-center overflow-visible">
                 {/* Lower ambient glow plate */}
                 <div className="iso-card-shadow absolute w-[260px] h-[150px] rounded-2xl bg-teal-500/20 border border-teal-400/40 shadow-[0_0_40px_rgba(94,234,212,0.3)] pointer-events-none" />
 
@@ -2205,7 +2278,7 @@ export default function Home() {
           >
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-stretch">
               {/* Left part of container */}
-              <div className="lg:col-span-8 glass-panel glass-panel--static rounded-2xl p-5 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
+              <div className="lg:col-span-8 glass-panel glass-panel--static rounded-2xl p-4 sm:p-6 flex flex-col justify-between gap-5 border border-teal-500/35 shadow-[0_16px_40px_rgba(0,0,0,0.6)]">
                 {/* Header */}
                 <div className="flex items-center justify-between border-b border-teal-500/20 pb-3">
                   <div className="flex items-center gap-3">
@@ -2275,7 +2348,7 @@ export default function Home() {
                         )}
                       </div>
                       <span
-                        className={`text-xs font-semibold text-white px-2 transition-colors duration-200 group-hover/drop:text-teal-100 ${isFileUploaded ? "max-w-[320px] truncate" : "max-w-none text-center"}`}
+                        className={`text-xs font-semibold text-white px-2 transition-colors duration-200 group-hover/drop:text-teal-100 ${isFileUploaded ? "max-w-full truncate" : "max-w-none text-center"}`}
                       >
                         {isRealRoutineGenerated
                           ? "Upload disabled (routine table generated) — clear data to upload"
@@ -2446,7 +2519,7 @@ export default function Home() {
                           ref={linkPopupRef}
                           role="dialog"
                           aria-label="Google Drive link options"
-                          className="absolute left-3 top-[calc(100%+6px)] z-50 w-auto min-w-[200px] max-w-[300px] rounded-lg border border-teal-500/40 bg-[#0B1520]/95 backdrop-blur-md p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.15)] animate-in fade-in zoom-in-95 duration-100"
+                          className="absolute left-1 sm:left-3 top-[calc(100%+6px)] z-50 w-auto min-w-[180px] max-w-[min(280px,calc(100vw-3.5rem))] rounded-lg border border-teal-500/40 bg-[#0B1520]/95 backdrop-blur-md p-1.5 shadow-[0_8px_24px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.15)] animate-in fade-in zoom-in-95 duration-100"
                         >
                           {/* Upward caret arrow */}
                           <div className="absolute left-5 -top-1.5 h-2.5 w-2.5 rotate-45 border-l border-t border-teal-500/40 bg-[#0B1520]" />
@@ -2599,9 +2672,17 @@ export default function Home() {
                         if (event.key === "Enter") {
                           event.preventDefault();
                           const trimmed = courseDraft.trim().toUpperCase();
-                          if (!trimmed || hasIncompleteTrailingDot(trimmed)) {
+                          if (!trimmed) return;
+
+                          if (!isFullCourseCode(trimmed)) {
+                            setCourseDraft("");
+                            setError(
+                              "Incomplete course code! Please enter course code with section (e.g. CSE181.5).",
+                            );
                             return;
                           }
+
+                          setError("");
                           addCourseCodes(`${trimmed},`);
                         } else if (
                           event.key === "Backspace" &&
@@ -2618,8 +2699,12 @@ export default function Home() {
                       onBlur={() => {
                         if (isCourseInputDisabled) return;
                         const trimmed = courseDraft.trim().toUpperCase();
-                        if (trimmed && !hasIncompleteTrailingDot(trimmed)) {
-                          addCourseCodes(`${trimmed},`);
+                        if (trimmed) {
+                          if (isFullCourseCode(trimmed)) {
+                            addCourseCodes(`${trimmed},`);
+                          } else {
+                            setCourseDraft("");
+                          }
                         }
                       }}
                       placeholder={
@@ -2629,7 +2714,7 @@ export default function Home() {
                             ? "Upload routine file or paste Drive link first…"
                             : "Add course code (e.g. CSE181.5)…"
                       }
-                      className="min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                      className="min-w-[120px] sm:min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
                       aria-describedby="course-codes-hint"
                     />
                   </div>
@@ -2647,8 +2732,16 @@ export default function Home() {
                       className="text-[11px] text-amber-300 font-medium flex items-center gap-1"
                     >
                       <span>
-                        Dot (.) এর পর সেকশন নাম্বার লিখুন (যেমন .5), তারপর Enter
-                        চাপুন।
+                        Enter section number after dot (e.g. .5), then press Enter.
+                      </span>
+                    </p>
+                  ) : courseDraft.trim() && !isFullCourseCode(courseDraft) ? (
+                    <p
+                      id="course-codes-hint"
+                      className="text-[11px] text-amber-300 font-medium flex items-center gap-1"
+                    >
+                      <span>
+                        Enter course code with section (e.g. CSE181.5), then press Enter.
                       </span>
                     </p>
                   ) : (
@@ -2664,7 +2757,7 @@ export default function Home() {
 
                 {/* Glowing "Generate" button and "Clear My Data" ghost button */}
                 <div className="flex flex-wrap items-center justify-between gap-3 mt-3 pt-4 border-t border-teal-500/15">
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2.5">
                     <div
                       className={`group/gen relative inline-flex ${isGenerateDisabled ? "cursor-not-allowed" : ""}`}
                     >
@@ -2673,10 +2766,10 @@ export default function Home() {
                         onClick={() => void handleGenerate()}
                         disabled={isGenerateDisabled}
                         aria-label="Generate personal exam table"
-                        className={`relative overflow-hidden inline-flex items-center gap-2.5 px-7 py-2.5 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+                        className={`relative overflow-hidden inline-flex items-center justify-center rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-400 ease-[cubic-bezier(0.22,1,0.36,1)] ${
                           generating
-                            ? "bg-gradient-to-r from-[#5EEAD4] via-[#A7F3D0] to-[#5EEAD4] text-[#031A15] shadow-[0_0_35px_rgba(94,234,212,0.7)] ring-2 ring-teal-300 cursor-wait"
-                            : "btn-neon-primary disabled:opacity-40 disabled:pointer-events-none shadow-[0_0_20px_rgba(94,234,212,0.35)]"
+                            ? "w-[5.5rem] sm:w-[6rem] px-0 py-2.5 bg-gradient-to-r from-[#5EEAD4] via-[#A7F3D0] to-[#5EEAD4] text-[#031A15] shadow-[0_0_35px_rgba(94,234,212,0.7)] ring-2 ring-teal-300 cursor-wait"
+                            : "min-w-[130px] px-7 py-2.5 gap-2.5 btn-neon-primary disabled:opacity-40 disabled:pointer-events-none shadow-[0_0_20px_rgba(94,234,212,0.35)]"
                         }`}
                       >
                         {generating && (
@@ -2684,19 +2777,40 @@ export default function Home() {
                           <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/50 to-transparent animate-shimmer" />
                         )}
                         {generating ? (
-                          <div className="relative flex items-center justify-center">
-                            <LoaderCircle className="w-4 h-4 animate-spin text-[#031A15] stroke-[3]" />
+                          <div
+                            aria-hidden="true"
+                            className="celestial-sparkle-container"
+                          >
+                            <span className="celestial-aura absolute w-6 h-6 rounded-full bg-teal-950/40 blur-[2px] pointer-events-none" />
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="celestial-stardust-tr absolute -top-0.5 -right-0.5 w-2.5 h-2.5 text-[#031A15] fill-current"
+                            >
+                              <path d="M12 0L14.5 9.5L24 12L14.5 14.5L12 24L9.5 14.5L0 12L9.5 9.5L12 0Z" />
+                            </svg>
+                            <svg
+                              viewBox="0 0 24 24"
+                              className="celestial-stardust-bl absolute -bottom-0.5 -left-0.5 w-2 h-2 text-[#031A15] fill-current"
+                            >
+                              <path d="M12 0L14.5 9.5L24 12L14.5 14.5L12 24L9.5 14.5L0 12L9.5 9.5L12 0Z" />
+                            </svg>
+                            <div className="celestial-core-rotator">
+                              <svg
+                                viewBox="0 0 24 24"
+                                className="celestial-star-core w-5 h-5 text-[#031A15] fill-current"
+                              >
+                                <path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z" />
+                              </svg>
+                            </div>
                           </div>
                         ) : (
-                          <Sparkles className="w-4 h-4 text-[#041B16]" />
+                          <>
+                            <Sparkles className="w-4 h-4 text-[#041B16] shrink-0" />
+                            <span className="font-extrabold tracking-wider whitespace-nowrap">
+                              Generate
+                            </span>
+                          </>
                         )}
-                        <span className="font-extrabold tracking-wider">
-                          {generating
-                            ? driveLink.trim()
-                              ? "Reading Drive…"
-                              : "Building Table…"
-                            : "Generate"}
-                        </span>
                       </button>
 
                       {/* Custom Glassmorphic Tooltip */}
@@ -2755,15 +2869,15 @@ export default function Home() {
                   </div>
 
                   {fileName && (
-                    <span className="text-[11px] font-mono-code text-teal-300/70 truncate max-w-[200px]">
+                    <span className="text-[11px] font-mono-code text-teal-300/70 truncate max-w-full sm:max-w-[200px]">
                       {fileName}
                     </span>
                   )}
                 </div>
               </div>
 
-              {/* Right part of container: Three vertically stacked glass cards (Time, Privacy, Calendar) */}
-              <div className="lg:col-span-4 flex flex-col gap-3 lg:justify-center">
+              {/* Right part of container: Three feature glass cards (Time, Privacy, Calendar) */}
+              <div className="lg:col-span-4 grid grid-cols-1 sm:grid-cols-3 lg:flex lg:flex-col gap-3 lg:justify-center">
                 {/* Card 1: Accurate Timetable */}
                 <div className="group flex flex-1 flex-col justify-center gap-1.5 rounded-2xl glass-panel border border-teal-500/25 p-4 shadow-[0_8px_30px_rgba(0,0,0,0.4)] transition-all duration-200 hover:border-teal-400/60 hover:bg-[#0c1f2b]/80 hover:shadow-[0_12px_32px_rgba(0,0,0,0.5),0_0_20px_rgba(94,234,212,0.12)] sm:p-5 cursor-default">
                   <div className="flex items-center gap-2.5 text-white font-semibold text-sm transition-colors duration-200 group-hover:text-teal-200">
@@ -2941,7 +3055,7 @@ export default function Home() {
             </div>
 
             {/* Clear, evenly sized cards keep the workflow easy to scan. */}
-            <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-3 p-2 -m-2 overflow-visible">
+            <div className="grid grid-cols-1 gap-4 pt-1 sm:grid-cols-3">
               {/* Step 1 */}
               <div className="glass-card group flex min-h-[170px] flex-col gap-4 rounded-2xl border border-teal-500/20 bg-gradient-to-br from-[#10242b] to-[#0b151d] p-6 transition-all duration-200 hover:border-teal-400/60 hover:bg-[#122830]/90 hover:shadow-[0_12px_36px_rgba(0,0,0,0.5),0_0_24px_rgba(94,234,212,0.14)] cursor-default">
                 <div className="flex items-center gap-3">
@@ -2999,7 +3113,7 @@ export default function Home() {
             minHeight="360px"
           >
             {/* Header */}
-            <div className="results-heading no-print flex flex-wrap items-end justify-between gap-3 border-b border-teal-500/20 pb-3">
+            <div className="results-heading no-print flex flex-col sm:flex-row items-start sm:items-end justify-between gap-3 border-b border-teal-500/20 pb-3">
               <div>
                 <span className="mb-1 block font-mono-code text-[11px] uppercase tracking-widest text-[#5EEAD4]">
                   Results
@@ -3025,14 +3139,14 @@ export default function Home() {
               </div>
 
               {generatedExams.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2.5">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={exportPdf}
                     disabled={isRevealingRows}
-                    className="btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="btn-ghost-glass flex-1 sm:flex-initial justify-center inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <Download className="w-3.5 h-3.5 text-teal-400" />
+                    <Download className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                     <span>Download PDF</span>
                   </button>
 
@@ -3040,12 +3154,12 @@ export default function Home() {
                     type="button"
                     onClick={exportPng}
                     disabled={pngExporting || isRevealingRows}
-                    className="btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="btn-ghost-glass flex-1 sm:flex-initial justify-center inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                   >
                     {pngExporting ? (
-                      <LoaderCircle className="w-3.5 h-3.5 animate-spin text-teal-400" />
+                      <LoaderCircle className="w-3.5 h-3.5 animate-spin text-teal-400 shrink-0" />
                     ) : (
-                      <Download className="w-3.5 h-3.5 text-teal-400" />
+                      <Download className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                     )}
                     <span>
                       {pngExporting ? "Rendering PNG..." : "Download PNG"}
@@ -3056,9 +3170,9 @@ export default function Home() {
                     type="button"
                     onClick={() => window.print()}
                     disabled={isRevealingRows}
-                    className="no-print btn-ghost-glass inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="no-print btn-ghost-glass flex-1 sm:flex-initial justify-center inline-flex items-center gap-1.5 px-3 sm:px-3.5 py-1.5 rounded-lg text-xs whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed"
                   >
-                    <Printer className="w-3.5 h-3.5 text-teal-400" />
+                    <Printer className="w-3.5 h-3.5 text-teal-400 shrink-0" />
                     <span>Print PDF</span>
                   </button>
                 </div>
@@ -3333,7 +3447,7 @@ export default function Home() {
                         <div
                           role="dialog"
                           aria-label="Google Calendar Sync Prompt"
-                          className={`pointer-events-auto relative flex flex-col items-center gap-3 rounded-2xl border border-teal-400/40 bg-[#0A1822]/90 backdrop-blur-2xl px-7 py-4 text-center shadow-[0_24px_50px_rgba(0,0,0,0.85),0_0_35px_rgba(94,234,212,0.22)] max-w-sm transition-all duration-500 ease-out ${
+                          className={`pointer-events-auto relative flex flex-col items-center gap-3 rounded-2xl border border-teal-400/40 bg-[#0A1822]/90 backdrop-blur-2xl px-5 py-4 sm:px-7 text-center shadow-[0_24px_50px_rgba(0,0,0,0.85),0_0_35px_rgba(94,234,212,0.22)] w-full max-w-[calc(100vw-2.5rem)] sm:max-w-sm transition-all duration-500 ease-out ${
                             isSyncPromptClosing
                               ? "opacity-0 scale-90 translate-y-3 pointer-events-none"
                               : "opacity-100 scale-100 translate-y-0 animate-in fade-in zoom-in-95 duration-500"
@@ -3358,12 +3472,24 @@ export default function Home() {
 
                           {/* Body: Either Circular Loader OR Action Buttons */}
                           {calendarSyncing ? (
-                            <div className="flex flex-col items-center justify-center py-1 transition-all duration-300 animate-in fade-in zoom-in-90">
-                              <div className="relative flex items-center justify-center">
-                                <div className="absolute w-9 h-9 rounded-full bg-teal-400/15 animate-ping" />
-                                <LoaderCircle className="h-6 w-6 animate-spin text-emerald-300 stroke-[2.5]" />
+                            <div className="flex flex-col items-center justify-center py-2 transition-all duration-300 animate-in fade-in zoom-in-90">
+                              <div className="relative flex items-center justify-center w-10 h-10">
+                                <svg
+                                  aria-hidden="true"
+                                  className="google-official-spinner w-8 h-8"
+                                  viewBox="0 0 50 50"
+                                >
+                                  <circle
+                                    className="google-official-spinner-path"
+                                    cx="25"
+                                    cy="25"
+                                    r="20"
+                                    fill="none"
+                                    strokeWidth="4"
+                                  />
+                                </svg>
                               </div>
-                              <span className="mt-2 text-[10.5px] font-mono-code text-teal-300/80 tracking-wider">
+                              <span className="mt-2 text-[11px] font-mono-code text-teal-300/80 tracking-wider">
                                 Adding exams & reminders…
                               </span>
                             </div>
@@ -3399,14 +3525,11 @@ export default function Home() {
                                     setError("");
 
                                     try {
-                                      if (authSession) {
+                                      if (authSession && hasCalendarScope) {
                                         const ok =
                                           await syncCalendar(generatedExams);
-                                        if (ok) {
-                                          setHasCalendarScope(true);
-                                          closeSyncPrompt();
-                                          return;
-                                        }
+                                        closeSyncPrompt();
+                                        return;
                                       }
 
                                       const requireDrive =
@@ -3417,6 +3540,7 @@ export default function Home() {
                                         });
 
                                       if (popupResult?.error) {
+                                        closeSyncPrompt();
                                         if (
                                           popupResult.error.code ===
                                           "POPUP_CLOSED"
@@ -3440,11 +3564,12 @@ export default function Home() {
 
                                       const ok =
                                         await syncCalendar(generatedExams);
+                                      closeSyncPrompt();
                                       if (ok) {
                                         setHasCalendarScope(true);
-                                        closeSyncPrompt();
                                       }
                                     } catch (err) {
+                                      closeSyncPrompt();
                                       setError(
                                         err instanceof Error
                                           ? err.message
@@ -3501,7 +3626,7 @@ export default function Home() {
             </div>
 
             {/* Accordion-style vertical list of questions */}
-            <div className="flex flex-col gap-3 p-2 -m-2 overflow-visible">
+            <div className="flex flex-col gap-3">
               {faqItems.map((item) => (
                 <details
                   key={item.question}
@@ -3578,7 +3703,7 @@ export default function Home() {
       <CustomScrollbar />
 
       {(message || error || savedNotice) && (
-        <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-2.5 max-w-[calc(100vw-2rem)] pointer-events-none">
+        <div className="fixed bottom-4 sm:bottom-5 left-3 sm:left-auto right-3 sm:right-5 z-50 flex flex-col items-center sm:items-end gap-2.5 max-w-[calc(100vw-1.5rem)] sm:max-w-md pointer-events-none">
           {message && (
             <div
               role="status"
