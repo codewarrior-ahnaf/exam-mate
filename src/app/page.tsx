@@ -403,6 +403,85 @@ function LazySection({
   );
 }
 
+function SupersonicRocketCraft({ isDocked }: { isDocked?: boolean }) {
+  return (
+    <g className={isDocked ? "rocket-docked-hover" : ""}>
+      {/* Dynamic Thruster Jet Plasma Flame */}
+      <g className={isDocked ? "rocket-flame-idle" : "rocket-flame-thrust"}>
+        <path
+          d="M -9 -2.5 C -15 -3.5 -19 0 -22 0 C -19 0 -15 3.5 -9 2.5 Z"
+          fill="url(#thruster-plasma-gradient)"
+          className="flame-plume"
+        />
+        <path
+          d="M -9 -1.2 C -13 -1.5 -16 0 -18 0 C -16 0 -13 1.5 -9 1.2 Z"
+          fill="#FFFFFF"
+          className="flame-core"
+        />
+      </g>
+
+      {/* Delta Wings */}
+      <path
+        d="M -6 -2.2 L -9.5 -7.5 L -2 -3 Z"
+        fill="#0f766e"
+        stroke="#5eead4"
+        strokeWidth="0.8"
+      />
+      <path
+        d="M -6 2.2 L -9.5 7.5 L -2 3 Z"
+        fill="#0f766e"
+        stroke="#5eead4"
+        strokeWidth="0.8"
+      />
+
+      {/* Main Fuselage Body */}
+      <path
+        d="M -9 -3.8 C -4 -4.2 4 -3 13 0 C 4 3 -4 4.2 -9 3.8 C -10.5 2.2 -10.5 -2.2 -9 -3.8 Z"
+        fill="url(#rocket-body-gradient)"
+        stroke="#5eead4"
+        strokeWidth="0.9"
+      />
+
+      {/* Cockpit Canopy */}
+      <ellipse
+        cx="2.5"
+        cy="0"
+        rx="4.5"
+        ry="1.8"
+        fill="url(#cockpit-glass-gradient)"
+      />
+
+      {/* Engine Exhaust Nozzle */}
+      <rect
+        x="-10.5"
+        y="-2.5"
+        width="1.8"
+        height="5"
+        rx="0.9"
+        fill="#042f2e"
+        stroke="#5eead4"
+        strokeWidth="0.6"
+      />
+
+      {/* Wingtip Beacons */}
+      <circle
+        cx="-9.5"
+        cy="-7.5"
+        r="0.8"
+        fill="#5eead4"
+        className="wingtip-beacon"
+      />
+      <circle
+        cx="-9.5"
+        cy="7.5"
+        r="0.8"
+        fill="#5eead4"
+        className="wingtip-beacon"
+      />
+    </g>
+  );
+}
+
 export default function Home() {
   const { data: authSession } = authClient.useSession();
   const inputRef = useRef<HTMLInputElement | null>(null);
@@ -428,6 +507,9 @@ export default function Home() {
   const [googleDisconnecting, setGoogleDisconnecting] = useState(false);
   const [calendarSyncing, setCalendarSyncing] = useState(false);
   const [pngExporting, setPngExporting] = useState(false);
+  const [rocketFlight, setRocketFlight] = useState<
+    "idle-docked" | "launching" | "diving" | "orbiting-circle" | "hidden"
+  >("hidden");
   const lastCalendarSyncRef = useRef("");
   const [isDragOver, setIsDragOver] = useState(false);
   const [isSampleRoutine, setIsSampleRoutine] = useState(false);
@@ -436,19 +518,44 @@ export default function Home() {
   const isTableGenerated = generatedExams.length > 0;
   const isRealRoutineGenerated = isTableGenerated && !isSampleRoutine;
   const hasRoutineSource = Boolean(isFileUploaded || isLinkActive);
-  const hasDataToClear = Boolean(
-    isTableGenerated ||
-    allExams.length > 0 ||
-    isFileUploaded ||
-    isLinkActive ||
-    courseInput.trim() ||
-    courseDraft.trim() ||
-    isSampleRoutine,
-  );
+  const hasDataToClear = Boolean(isTableGenerated);
+  const [isClearing, setIsClearing] = useState(false);
+  const [isClearedJustNow, setIsClearedJustNow] = useState(false);
+  const clearTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const clearedSuccessTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [removeFilePhase, setRemoveFilePhase] = useState<
+    "idle" | "tossing" | "slammed" | "collapsing"
+  >("idle");
+  const removeFileTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const [isSlashingLink, setIsSlashingLink] = useState(false);
+  const slashLinkTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isUploadDisabled = isLinkActive || uploading || isRealRoutineGenerated;
   const isLinkDisabled = isFileUploaded || isRealRoutineGenerated;
   const isCourseInputDisabled = isRealRoutineGenerated || !hasRoutineSource;
+
+  useEffect(() => {
+    if (authSession) {
+      if (rocketFlight !== "diving" && rocketFlight !== "orbiting-circle") {
+        setRocketFlight("hidden");
+      }
+    } else if (!isSampleRoutine && (isRealRoutineGenerated || isLinkActive)) {
+      if (rocketFlight === "hidden") {
+        setRocketFlight("idle-docked");
+      }
+    } else {
+      setRocketFlight("hidden");
+    }
+  }, [authSession, isSampleRoutine, isRealRoutineGenerated, isLinkActive]);
+
+  useEffect(() => {
+    if (rocketFlight === "launching") {
+      const timer = setTimeout(() => {
+        setRocketFlight("idle-docked");
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [rocketFlight]);
 
   const [recentLinks, setRecentLinks] = useState<string[]>([]);
   const [showLinkPopup, setShowLinkPopup] = useState(false);
@@ -593,9 +700,7 @@ export default function Home() {
 
   const hasEnteredCourse =
     selectedCourseCodes.length > 0 ||
-    Boolean(
-      courseDraft.trim() && isFullCourseCode(courseDraft.trim()),
-    );
+    Boolean(courseDraft.trim() && isFullCourseCode(courseDraft.trim()));
 
   const isGenerateDisabled =
     generating ||
@@ -672,6 +777,18 @@ export default function Home() {
     return () => {
       if (rowRevealIntervalRef.current) {
         clearInterval(rowRevealIntervalRef.current);
+      }
+      if (clearTimerRef.current) {
+        clearTimeout(clearTimerRef.current);
+      }
+      if (clearedSuccessTimerRef.current) {
+        clearTimeout(clearedSuccessTimerRef.current);
+      }
+      if (removeFileTimerRef.current) {
+        clearTimeout(removeFileTimerRef.current);
+      }
+      if (slashLinkTimerRef.current) {
+        clearTimeout(slashLinkTimerRef.current);
       }
     };
   }, []);
@@ -1077,21 +1194,76 @@ export default function Home() {
     }
   }
 
+  function handleAnimatedRemoveFile() {
+    if (removeFilePhase !== "idle") return;
+
+    // Phase 1: Button morphs into circle, text crumples into paper ball and arcs into trash can (220ms)
+    setRemoveFilePhase("tossing");
+
+    if (removeFileTimerRef.current) clearTimeout(removeFileTimerRef.current);
+
+    removeFileTimerRef.current = setTimeout(() => {
+      // Phase 2: Circle enters trash can, lid snaps shut with a bounce, can gulps (140ms)
+      setRemoveFilePhase("slammed");
+
+      removeFileTimerRef.current = setTimeout(() => {
+        // Phase 3: Circular button gracefully hides with professional smooth scale (200ms)
+        setRemoveFilePhase("collapsing");
+
+        removeFileTimerRef.current = setTimeout(() => {
+          // Phase 4: State cleanly resets to empty
+          clearUploadedFile();
+          setRemoveFilePhase("idle");
+        }, 200);
+      }, 140);
+    }, 220);
+  }
+
   function clearUploadedFile() {
+    if (removeFileTimerRef.current) {
+      clearTimeout(removeFileTimerRef.current);
+    }
+    setRemoveFilePhase("idle");
     setFileName("");
     setRestrictedDriveFileId("");
     setRequiresGoogleAuth(false);
     setAllExams([]);
+    setCourseInput("");
+    setCourseDraft("");
+    if (typeof window !== "undefined") {
+      window.sessionStorage.removeItem("examMate:pendingCourses");
+    }
     if (inputRef.current) inputRef.current.value = "";
     setMessage("");
   }
 
+  function handleAnimatedClearDriveLink() {
+    if (isSlashingLink || !driveLink) return;
+
+    setIsSlashingLink(true);
+    setShowLinkPopup(false);
+
+    if (slashLinkTimerRef.current) clearTimeout(slashLinkTimerRef.current);
+
+    slashLinkTimerRef.current = setTimeout(() => {
+      clearDriveLink();
+      setIsSlashingLink(false);
+    }, 320);
+  }
+
   function clearDriveLink() {
+    if (slashLinkTimerRef.current) {
+      clearTimeout(slashLinkTimerRef.current);
+    }
+    setIsSlashingLink(false);
     setDriveLink("");
     setShowLinkPopup(false);
+    setCourseInput("");
+    setCourseDraft("");
     if (typeof window !== "undefined") {
       window.sessionStorage.removeItem("examMate:pendingDriveLink");
       window.localStorage.removeItem("examMate:savedDriveLink");
+      window.sessionStorage.removeItem("examMate:pendingCourses");
     }
     setRestrictedDriveFileId("");
     setRequiresGoogleAuth(false);
@@ -1461,6 +1633,10 @@ export default function Home() {
   }
 
   function clearSavedRoutine() {
+    if (isClearing) {
+      return;
+    }
+
     const hasStoredRoutine =
       typeof window !== "undefined" &&
       Boolean(window.localStorage.getItem(ROUTINE_STORAGE_KEY));
@@ -1479,41 +1655,63 @@ export default function Home() {
     }
     setIsSyncPromptClosing(false);
     setShowCalendarSyncPrompt(false);
-    setIsSampleRoutine(false);
-    setGeneratedExams([]);
-    setVisibleRowCount(0);
-    setIsRevealingRows(false);
-    setCourseInput("");
-    setCourseDraft("");
-    setFileName("");
-    setDriveLink("");
-    setShowLinkPopup(false);
-    setAllExams([]);
-    setRestrictedDriveFileId("");
-    setRequiresGoogleAuth(false);
-    if (inputRef.current) {
-      inputRef.current.value = "";
-    }
-    routineSourceRef.current = "excel";
-    try {
-      if (typeof window !== "undefined") {
-        window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
-        window.localStorage.removeItem("examMate:routine:v1");
-        window.localStorage.removeItem("examMate:savedDriveLink");
-        window.sessionStorage.removeItem("examMate:routineSource");
-        window.sessionStorage.removeItem("examMate:pendingDriveLink");
-        window.sessionStorage.removeItem("examMate:pendingCourses");
-        window.sessionStorage.removeItem("examMate:pendingCalendarSync");
-        window.sessionStorage.removeItem("examMate:justConnectedGoogle");
+
+    // Trigger smooth sci-fi dissolve & button micro-shake animation
+    setIsClearing(true);
+    if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
+    if (clearedSuccessTimerRef.current)
+      clearTimeout(clearedSuccessTimerRef.current);
+    if (removeFileTimerRef.current) clearTimeout(removeFileTimerRef.current);
+    setRemoveFilePhase("idle");
+    if (slashLinkTimerRef.current) clearTimeout(slashLinkTimerRef.current);
+    setIsSlashingLink(false);
+
+    clearTimerRef.current = setTimeout(() => {
+      setIsSampleRoutine(false);
+      setGeneratedExams([]);
+      setVisibleRowCount(0);
+      setIsRevealingRows(false);
+      setCourseInput("");
+      setCourseDraft("");
+      setFileName("");
+      setDriveLink("");
+      setShowLinkPopup(false);
+      setAllExams([]);
+      setRestrictedDriveFileId("");
+      setRequiresGoogleAuth(false);
+      if (inputRef.current) {
+        inputRef.current.value = "";
       }
-    } catch {
-      // ignore
-    }
-    setSavedNotice("");
-    setMessage("Routine data and browser cache cleared.");
+      routineSourceRef.current = "excel";
+      try {
+        if (typeof window !== "undefined") {
+          window.localStorage.removeItem(ROUTINE_STORAGE_KEY);
+          window.localStorage.removeItem("examMate:routine:v1");
+          window.localStorage.removeItem("examMate:savedDriveLink");
+          window.sessionStorage.removeItem("examMate:routineSource");
+          window.sessionStorage.removeItem("examMate:pendingDriveLink");
+          window.sessionStorage.removeItem("examMate:pendingCourses");
+          window.sessionStorage.removeItem("examMate:pendingCalendarSync");
+          window.sessionStorage.removeItem("examMate:justConnectedGoogle");
+        }
+      } catch {
+        // ignore
+      }
+      setSavedNotice("");
+      setMessage("Routine data and browser cache cleared.");
+      setIsClearing(false);
+      setIsClearedJustNow(true);
+
+      clearedSuccessTimerRef.current = setTimeout(() => {
+        setIsClearedJustNow(false);
+      }, 1500);
+    }, 480);
   }
 
   async function handleGoogleConnect() {
+    if (googleLoading || rocketFlight === "diving") {
+      return;
+    }
     if (isSampleRoutine) {
       setError("Google sync is disabled for sample routines.");
       return;
@@ -1543,8 +1741,12 @@ export default function Home() {
     } catch {
       // ignore
     }
-    setGoogleLoading(true);
     setError("");
+    if (rocketFlight === "idle-docked" || rocketFlight === "launching") {
+      setRocketFlight("diving");
+      await new Promise((resolve) => setTimeout(resolve, 1300));
+    }
+    setGoogleLoading(true);
     try {
       const requireDrive = Boolean(
         isLinkActive || routineSourceRef.current === "drive",
@@ -1562,6 +1764,7 @@ export default function Home() {
         }, 400);
       }
     } catch (connectError) {
+      setRocketFlight("launching");
       setError(
         connectError instanceof Error
           ? connectError.message
@@ -1575,11 +1778,15 @@ export default function Home() {
   async function handleGoogleDisconnect() {
     setGoogleDisconnecting(true);
     setGoogleLoading(true);
+    setRocketFlight("orbiting-circle");
     setError("");
     try {
-      const disconnectResponse = await fetch("/api/calendar/disconnect", {
-        method: "POST",
-      });
+      const [disconnectResponse] = await Promise.all([
+        fetch("/api/calendar/disconnect", {
+          method: "POST",
+        }),
+        new Promise((resolve) => setTimeout(resolve, 1800)),
+      ]);
       const disconnectText = await disconnectResponse.text();
       let disconnectResult: { disconnected?: boolean; error?: string };
       try {
@@ -1597,8 +1804,10 @@ export default function Home() {
       if (result?.error)
         throw new Error(result.error.message || "Google disconnect failed.");
       lastCalendarSyncRef.current = "";
+      setRocketFlight("launching");
       setMessage("Google disconnected. Calendar events kept.");
     } catch (disconnectError) {
+      setRocketFlight("hidden");
       setError(
         disconnectError instanceof Error
           ? disconnectError.message
@@ -1971,14 +2180,25 @@ export default function Home() {
         "Yes. You can upload your routine file, enter your course codes, and generate your personal exam schedule immediately without signing in or creating an account.",
     },
     {
-      question: "How does the Google Drive link import work & what permissions are requested?",
+      question:
+        "How does the Google Drive link import work & what permissions are requested?",
       answer: (
         <span className="space-y-2 block">
           <span>
-            Paste your shared Google Drive or Sheets link in Option 2. If the routine spreadsheet requires institutional authorization (@seu.edu.bd), clicking Generate will prompt a secure Google sign-in requesting read-only access (<code className="text-teal-300 bg-teal-950/60 px-1 py-0.5 rounded border border-teal-500/20 text-[11px]">drive.readonly</code>) strictly to download that specific routine file.
+            Paste your shared Google Drive or Sheets link in Option 2. If the
+            routine spreadsheet requires institutional authorization
+            (@seu.edu.bd), clicking Generate will prompt a secure Google sign-in
+            requesting read-only access (
+            <code className="text-teal-300 bg-teal-950/60 px-1 py-0.5 rounded border border-teal-500/20 text-[11px]">
+              drive.readonly
+            </code>
+            ) strictly to download that specific routine file.
           </span>
           <span className="block text-slate-400">
-            ExamMate accesses only the specific target file ID provided in the link. It never searches, browses, edits, or deletes any other files in your Google Drive, and the routine is parsed directly in browser memory with zero server storage.
+            ExamMate accesses only the specific target file ID provided in the
+            link. It never searches, browses, edits, or deletes any other files
+            in your Google Drive, and the routine is parsed directly in browser
+            memory with zero server storage.
           </span>
         </span>
       ),
@@ -1993,10 +2213,19 @@ export default function Home() {
       answer: (
         <span className="space-y-2 block">
           <span>
-            Yes. Connecting Google Calendar is completely optional. When you choose to sync your routine, ExamMate requests calendar event permission (<code className="text-teal-300 bg-teal-950/60 px-1 py-0.5 rounded border border-teal-500/20 text-[11px]">calendar.events</code>) solely to add your matched exam dates, shift times, and reminders directly to your primary calendar.
+            Yes. Connecting Google Calendar is completely optional. When you
+            choose to sync your routine, ExamMate requests calendar event
+            permission (
+            <code className="text-teal-300 bg-teal-950/60 px-1 py-0.5 rounded border border-teal-500/20 text-[11px]">
+              calendar.events
+            </code>
+            ) solely to add your matched exam dates, shift times, and reminders
+            directly to your primary calendar.
           </span>
           <span className="block text-slate-400">
-            ExamMate only creates new exam events for the courses you selected; it never reads, alters, or deletes any of your existing personal calendar events.
+            ExamMate only creates new exam events for the courses you selected;
+            it never reads, alters, or deletes any of your existing personal
+            calendar events.
           </span>
         </span>
       ),
@@ -2006,10 +2235,14 @@ export default function Home() {
       answer: (
         <span className="space-y-2 block">
           <span>
-            Your routine is processed client-side in your browser and never stored on our servers. Generated schedules are saved locally on your device for 15 days for quick access and automatically expire afterwards.
+            Your routine is processed client-side in your browser and never
+            stored on our servers. Generated schedules are saved locally on your
+            device for 15 days for quick access and automatically expire
+            afterwards.
           </span>
           <span className="block text-slate-300">
-            ExamMate&apos;s use and transfer of information received from Google APIs to any other app will adhere to the{" "}
+            ExamMate&apos;s use and transfer of information received from Google
+            APIs to any other app will adhere to the{" "}
             <a
               href="https://developers.google.com/terms/api-services-user-data-policy"
               target="_blank"
@@ -2018,7 +2251,9 @@ export default function Home() {
             >
               Google API Services User Data Policy
             </a>
-            , including the Limited Use requirements. We never sell user data to third parties, nor do we use Google user data to train AI models. You can revoke access at any time via{" "}
+            , including the Limited Use requirements. We never sell user data to
+            third parties, nor do we use Google user data to train AI models.
+            You can revoke access at any time via{" "}
             <a
               href="https://myaccount.google.com/permissions"
               target="_blank"
@@ -2070,14 +2305,388 @@ export default function Home() {
 
           {/* Google connection action follows the dark glass and mint page palette. */}
           <div className="group/google relative mr-0.5 shrink-0 sm:mr-1">
-            {!authSession &&
-              !isSampleRoutine &&
-              (isRealRoutineGenerated || isLinkActive) && (
-                <Send
+            {/* Pill Orbit Overlay: Shown when connected pill is expanding or docked */}
+            {rocketFlight !== "hidden" &&
+              rocketFlight !== "orbiting-circle" && (
+                <div
+                  key="rocket-orbit-pill"
                   aria-hidden="true"
-                  className="pointer-events-none absolute -right-1.5 -top-2.5 z-10 h-4 w-4 rotate-[-10deg] fill-[#5EEAD4] text-[#5EEAD4] drop-shadow-[0_0_7px_rgba(94,234,212,0.8)] sm:-right-2 sm:-top-3 sm:h-5 sm:w-5"
-                />
+                  className="rocket-orbit-overlay"
+                >
+                  <svg
+                    key={`rocket-svg-${rocketFlight === "diving" ? "diving" : "docked"}`}
+                    className="rocket-orbit-svg"
+                    viewBox="0 0 188 56"
+                    preserveAspectRatio="none"
+                  >
+                    <defs>
+                      <linearGradient
+                        id="rocket-body-gradient"
+                        x1="0"
+                        y1="0"
+                        x2="1"
+                        y2="0"
+                      >
+                        <stop offset="0%" stopColor="#042f2e" />
+                        <stop offset="35%" stopColor="#0d9488" />
+                        <stop offset="75%" stopColor="#2dd4bf" />
+                        <stop offset="100%" stopColor="#f0fdfa" />
+                      </linearGradient>
+
+                      <linearGradient
+                        id="cockpit-glass-gradient"
+                        x1="0"
+                        y1="0"
+                        x2="0"
+                        y2="1"
+                      >
+                        <stop
+                          offset="0%"
+                          stopColor="#FFFFFF"
+                          stopOpacity="0.95"
+                        />
+                        <stop
+                          offset="50%"
+                          stopColor="#5eead4"
+                          stopOpacity="0.8"
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="#0f766e"
+                          stopOpacity="0.95"
+                        />
+                      </linearGradient>
+
+                      <linearGradient
+                        id="thruster-plasma-gradient"
+                        x1="1"
+                        y1="0"
+                        x2="0"
+                        y2="0"
+                      >
+                        <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                        <stop
+                          offset="25%"
+                          stopColor="#5eead4"
+                          stopOpacity="0.95"
+                        />
+                        <stop
+                          offset="60%"
+                          stopColor="#06b6d4"
+                          stopOpacity="0.75"
+                        />
+                        <stop
+                          offset="100%"
+                          stopColor="#3b82f6"
+                          stopOpacity="0"
+                        />
+                      </linearGradient>
+
+                      <filter
+                        id="rocket-neon-glow"
+                        x="-50%"
+                        y="-50%"
+                        width="200%"
+                        height="200%"
+                      >
+                        <feGaussianBlur
+                          in="SourceGraphic"
+                          stdDeviation="1.5"
+                          result="blur"
+                        />
+                        <feMerge>
+                          <feMergeNode in="blur" />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+
+                      <path
+                        id="orbit-path-launch"
+                        d="M 181.1 15.7 C 182.5 26.5, 145.0 43.0, 95.0 50.0 C 48.0 56.5, 8.0 52.0, 6.5 38.0 C 5.5 25.0, 38.0 11.0, 95.0 6.5 C 135.0 5.0, 164.8 23.3, 181.1 15.7 Z"
+                      />
+                      <path
+                        id="orbit-path-dive"
+                        d="M 181.1 15.7 C 182.9 27.9, 145.1 43.1, 96.9 49.9 C 48.7 56.7, 20 44, 24 28"
+                        pathLength="100"
+                      />
+
+                      {/* Launch Mask: traveling trailing window strictly behind nozzle that moves with rocket and continuously dissipates older dots */}
+                      <mask id="rocket-orbit-mask-launch">
+                        <path
+                          d="M 181.1 15.7 C 182.5 26.5, 145.0 43.0, 95.0 50.0 C 48.0 56.5, 8.0 52.0, 6.5 38.0 C 5.5 25.0, 38.0 11.0, 95.0 6.5 C 135.0 5.0, 164.8 23.3, 181.1 15.7 Z"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="16"
+                          strokeLinecap="round"
+                          pathLength="100"
+                          strokeDasharray="22 178"
+                          strokeDashoffset="27"
+                        >
+                          <animate
+                            attributeName="stroke-dashoffset"
+                            values="27; -48; -67; -73"
+                            dur="0.95s"
+                            begin="0s"
+                            fill="freeze"
+                            calcMode="spline"
+                            keyTimes="0; 0.65; 0.88; 1"
+                            keySplines="0.25 0.1 0.25 1; 0.3 0 0.2 1; 0.3 0 0.2 1"
+                          />
+                        </path>
+                      </mask>
+
+                      {/* Dive Mask: trailing smoke window strictly behind nozzle that moves with rocket and continuously dissipates older dots */}
+                      <mask id="rocket-orbit-mask-dive">
+                        <path
+                          d="M 181.1 15.7 C 182.9 27.9, 145.1 43.1, 96.9 49.9 C 48.7 56.7, 20 44, 24 28"
+                          fill="none"
+                          stroke="white"
+                          strokeWidth="16"
+                          strokeLinecap="round"
+                          pathLength="100"
+                          strokeDasharray="18 182"
+                          strokeDashoffset="28"
+                        >
+                          <animate
+                            attributeName="stroke-dashoffset"
+                            from="28"
+                            to="-72"
+                            values="28; -72"
+                            dur="1.3s"
+                            begin="0s"
+                            fill="freeze"
+                            calcMode="spline"
+                            keyTimes="0; 1"
+                            keySplines="0.4 0 0.2 1"
+                          />
+                        </path>
+                      </mask>
+                    </defs>
+
+                    {/* Active Glowing Stardust Smoke Trail: ZERO pre-drawn ambient path */}
+                    {rocketFlight === "launching" && (
+                      <path
+                        d="M 181.1 15.7 C 182.5 26.5, 145.0 43.0, 95.0 50.0 C 48.0 56.5, 8.0 52.0, 6.5 38.0 C 5.5 25.0, 38.0 11.0, 95.0 6.5 C 135.0 5.0, 164.8 23.3, 181.1 15.7 Z"
+                        fill="none"
+                        stroke="#5EEAD4"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeDasharray="2.5 5"
+                        filter="url(#rocket-neon-glow)"
+                        mask="url(#rocket-orbit-mask-launch)"
+                        className="rocket-trail-draw rocket-trail-draw--launch"
+                      />
+                    )}
+
+                    {rocketFlight === "diving" && (
+                      <path
+                        d="M 181.1 15.7 C 182.9 27.9, 145.1 43.1, 96.9 49.9 C 48.7 56.7, 20 44, 24 28"
+                        fill="none"
+                        stroke="#5EEAD4"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeDasharray="2.5 5"
+                        filter="url(#rocket-neon-glow)"
+                        mask="url(#rocket-orbit-mask-dive)"
+                        className="rocket-trail-draw rocket-trail-draw--dive"
+                      />
+                    )}
+
+                    {/* Supersonic Rocket Craft */}
+                    {rocketFlight === "launching" && (
+                      <g>
+                        <animateMotion
+                          dur="0.95s"
+                          repeatCount="1"
+                          rotate="auto"
+                          fill="freeze"
+                          calcMode="spline"
+                          keyTimes="0; 0.65; 0.88; 1"
+                          keyPoints="0; 0.75; 0.94; 1"
+                          keySplines="0.25 0.1 0.25 1; 0.3 0 0.2 1; 0.3 0 0.2 1"
+                        >
+                          <mpath href="#orbit-path-launch" />
+                        </animateMotion>
+                        <g className="rocket-vessel rocket-vessel--launching">
+                          <SupersonicRocketCraft isDocked={false} />
+                        </g>
+                      </g>
+                    )}
+
+                    {rocketFlight === "diving" && (
+                      <g>
+                        <animateMotion
+                          dur="1.3s"
+                          repeatCount="1"
+                          rotate="auto"
+                          fill="freeze"
+                          calcMode="spline"
+                          keyTimes="0; 1"
+                          keyPoints="0; 1"
+                          keySplines="0.4 0 0.2 1"
+                        >
+                          <mpath href="#orbit-path-dive" />
+                        </animateMotion>
+                        <g className="rocket-vessel rocket-vessel--diving">
+                          <SupersonicRocketCraft isDocked={false} />
+                        </g>
+                      </g>
+                    )}
+
+                    {rocketFlight === "idle-docked" && (
+                      <g
+                        className="rocket-vessel rocket-vessel--docked"
+                        transform="translate(181.1, 15.7) rotate(-25)"
+                      >
+                        <SupersonicRocketCraft isDocked={true} />
+                      </g>
+                    )}
+                  </svg>
+                </div>
               )}
+
+            {/* Circle Orbit Overlay: Shown ONLY while actively disconnecting from Google circle */}
+            {authSession && rocketFlight === "orbiting-circle" && (
+              <div
+                key="rocket-orbit-circle"
+                aria-hidden="true"
+                className="rocket-orbit-circle-overlay"
+              >
+                <svg
+                  className="rocket-orbit-svg"
+                  viewBox="0 0 92 52"
+                  preserveAspectRatio="none"
+                >
+                  <defs>
+                    <linearGradient
+                      id="rocket-body-gradient"
+                      x1="0"
+                      y1="0"
+                      x2="1"
+                      y2="0"
+                    >
+                      <stop offset="0%" stopColor="#042f2e" />
+                      <stop offset="35%" stopColor="#0d9488" />
+                      <stop offset="75%" stopColor="#2dd4bf" />
+                      <stop offset="100%" stopColor="#f0fdfa" />
+                    </linearGradient>
+                    <linearGradient
+                      id="cockpit-glass-gradient"
+                      x1="0"
+                      y1="0"
+                      x2="0"
+                      y2="1"
+                    >
+                      <stop
+                        offset="0%"
+                        stopColor="#FFFFFF"
+                        stopOpacity="0.95"
+                      />
+                      <stop
+                        offset="50%"
+                        stopColor="#5eead4"
+                        stopOpacity="0.8"
+                      />
+                      <stop
+                        offset="100%"
+                        stopColor="#0f766e"
+                        stopOpacity="0.95"
+                      />
+                    </linearGradient>
+                    <linearGradient
+                      id="thruster-plasma-gradient"
+                      x1="1"
+                      y1="0"
+                      x2="0"
+                      y2="0"
+                    >
+                      <stop offset="0%" stopColor="#ffffff" stopOpacity="1" />
+                      <stop
+                        offset="25%"
+                        stopColor="#5eead4"
+                        stopOpacity="0.95"
+                      />
+                      <stop
+                        offset="60%"
+                        stopColor="#06b6d4"
+                        stopOpacity="0.75"
+                      />
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+                    </linearGradient>
+                    <filter
+                      id="rocket-neon-glow"
+                      x="-50%"
+                      y="-50%"
+                      width="200%"
+                      height="200%"
+                    >
+                      <feGaussianBlur
+                        in="SourceGraphic"
+                        stdDeviation="1.5"
+                        result="blur"
+                      />
+                      <feMerge>
+                        <feMergeNode in="blur" />
+                        <feMergeNode in="SourceGraphic" />
+                      </feMerge>
+                    </filter>
+
+                    <path
+                      id="orbit-path-circle"
+                      d="M 83.09 11.02 C 86.40 19.22, 72.47 32.57, 51.99 40.84 C 31.51 49.11, 12.22 49.18, 8.91 40.98 C 5.60 32.78, 19.53 19.43, 40.01 11.16 C 60.49 2.89, 79.78 2.82, 83.09 11.02 Z"
+                    />
+
+                    {/* Mask that ONLY reveals 26 units behind the rocket nozzle around the circle */}
+                    <mask id="rocket-orbit-circle-mask">
+                      <path
+                        d="M 83.09 11.02 C 86.40 19.22, 72.47 32.57, 51.99 40.84 C 31.51 49.11, 12.22 49.18, 8.91 40.98 C 5.60 32.78, 19.53 19.43, 40.01 11.16 C 60.49 2.89, 79.78 2.82, 83.09 11.02 Z"
+                        fill="none"
+                        stroke="white"
+                        strokeWidth="14"
+                        strokeLinecap="round"
+                        pathLength="100"
+                        strokeDasharray="26 74"
+                      >
+                        <animate
+                          attributeName="stroke-dashoffset"
+                          from="130"
+                          to="30"
+                          dur="1.8s"
+                          repeatCount="indefinite"
+                        />
+                      </path>
+                    </mask>
+                  </defs>
+
+                  {/* Dotted Stardust Smoke Trail: strictly behind the flame via the trailing mask */}
+                  <path
+                    d="M 83.09 11.02 C 86.40 19.22, 72.47 32.57, 51.99 40.84 C 31.51 49.11, 12.22 49.18, 8.91 40.98 C 5.60 32.78, 19.53 19.43, 40.01 11.16 C 60.49 2.89, 79.78 2.82, 83.09 11.02 Z"
+                    fill="none"
+                    stroke="#5EEAD4"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeDasharray="2.5 5"
+                    filter="url(#rocket-neon-glow)"
+                    mask="url(#rocket-orbit-circle-mask)"
+                    className="rocket-trail-draw"
+                  />
+
+                  {/* Orbiting Rocket Craft around Circle */}
+                  <g>
+                    <animateMotion
+                      dur="1.8s"
+                      repeatCount="indefinite"
+                      rotate="auto"
+                    >
+                      <mpath href="#orbit-path-circle" />
+                    </animateMotion>
+                    <g className="rocket-vessel rocket-vessel--orbiting-circle">
+                      <SupersonicRocketCraft isDocked={false} />
+                    </g>
+                  </g>
+                </svg>
+              </div>
+            )}
             <button
               type="button"
               onClick={
@@ -2085,6 +2694,7 @@ export default function Home() {
               }
               disabled={
                 googleLoading ||
+                rocketFlight === "diving" ||
                 calendarSyncing ||
                 isSampleRoutine ||
                 (!authSession && !isRealRoutineGenerated && !isLinkActive)
@@ -2151,7 +2761,11 @@ export default function Home() {
             </button>
             <div
               role="tooltip"
-              className="pointer-events-none absolute right-0 top-[calc(100%+0.65rem)] z-50 w-max max-w-[min(20rem,calc(100vw-2rem))] translate-y-1 rounded-xl border border-teal-400/35 bg-[#0A1822]/95 px-3.5 py-2 text-xs backdrop-blur-xl opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 group-hover/google:translate-y-0 group-hover/google:opacity-100 group-focus-within/google:translate-y-0 group-focus-within/google:opacity-100"
+              className={`pointer-events-none absolute right-0 top-[calc(100%+0.65rem)] z-50 w-max max-w-[min(20rem,calc(100vw-2rem))] translate-y-1 rounded-xl border border-teal-400/35 bg-[#0A1822]/95 px-3.5 py-2 text-xs backdrop-blur-xl opacity-0 shadow-[0_12px_30px_rgba(0,0,0,0.65),0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 ${
+                googleLoading || googleDisconnecting
+                  ? "!opacity-0 !invisible pointer-events-none"
+                  : "group-hover/google:translate-y-0 group-hover/google:opacity-100 group-focus-within/google:translate-y-0 group-focus-within/google:opacity-100"
+              }`}
             >
               <div className="flex items-center gap-1.5 font-medium">
                 <span
@@ -2224,7 +2838,7 @@ export default function Home() {
             </div>
 
             {/* Right Side: isometric schedule preview */}
-            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-6 relative w-full max-w-full overflow-hidden py-3 sm:py-6 min-w-0">
+            <div className="lg:col-span-5 flex flex-col items-center justify-center gap-6 relative w-full max-w-full overflow-visible py-3 sm:py-6 min-w-0">
               {/* 3D Isometric Scene */}
               <div className="iso-scene relative w-full max-w-[min(380px,100%)] h-[220px] flex items-center justify-center">
                 {/* Lower ambient glow plate */}
@@ -2354,6 +2968,11 @@ export default function Home() {
                     </div>
 
                     <label
+                      onClick={(e) => {
+                        if (isFileUploaded) {
+                          e.preventDefault();
+                        }
+                      }}
                       onDragOver={(e) => {
                         e.preventDefault();
                         if (!isUploadDisabled) setIsDragOver(true);
@@ -2376,7 +2995,9 @@ export default function Home() {
                           ? "opacity-35 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
                           : isDragOver
                             ? "border-emerald-400 bg-emerald-950/40 cursor-pointer shadow-[0_0_24px_rgba(52,211,153,0.25)]"
-                            : "border-teal-400/40 bg-teal-950/20 cursor-pointer hover:border-teal-300/80 hover:bg-teal-950/40 hover:shadow-[0_0_28px_rgba(94,234,212,0.14),inset_0_0_20px_rgba(94,234,212,0.04)]"
+                            : isFileUploaded
+                              ? "border-teal-400/35 bg-teal-950/20 cursor-default"
+                              : "border-teal-400/40 bg-teal-950/20 cursor-pointer hover:border-teal-300/80 hover:bg-teal-950/40 hover:shadow-[0_0_28px_rgba(94,234,212,0.14),inset_0_0_20px_rgba(94,234,212,0.04)]"
                       }`}
                     >
                       <input
@@ -2387,7 +3008,13 @@ export default function Home() {
                         disabled={isUploadDisabled}
                         className="sr-only"
                       />
-                      <div className="w-10 h-10 rounded-full bg-teal-500/10 border border-teal-400/30 flex items-center justify-center text-[#5EEAD4] shadow-[0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 group-hover/drop:border-teal-300 group-hover/drop:bg-teal-500/25 group-hover/drop:shadow-[0_0_22px_rgba(94,234,212,0.35)]">
+                      <div
+                        className={`w-10 h-10 rounded-full bg-teal-500/10 border border-teal-400/30 flex items-center justify-center text-[#5EEAD4] shadow-[0_0_15px_rgba(94,234,212,0.18)] transition-all duration-200 ${
+                          !isFileUploaded
+                            ? "group-hover/drop:border-teal-300 group-hover/drop:bg-teal-500/25 group-hover/drop:shadow-[0_0_22px_rgba(94,234,212,0.35)]"
+                            : ""
+                        }`}
+                      >
                         {uploading && !isLinkActive ? (
                           <LoaderCircle className="w-5 h-5 animate-spin" />
                         ) : (
@@ -2395,7 +3022,11 @@ export default function Home() {
                         )}
                       </div>
                       <span
-                        className={`text-xs font-semibold text-white px-2 transition-colors duration-200 group-hover/drop:text-teal-100 ${isFileUploaded ? "max-w-full truncate" : "max-w-none text-center"}`}
+                        className={`text-xs font-semibold text-white px-2 transition-colors duration-200 ${
+                          !isFileUploaded
+                            ? "group-hover/drop:text-teal-100"
+                            : ""
+                        } ${isFileUploaded ? "max-w-full truncate" : "max-w-none text-center"}`}
                       >
                         {isRealRoutineGenerated
                           ? "Upload disabled (routine table generated) — clear data to upload"
@@ -2410,14 +3041,83 @@ export default function Home() {
                       !isRealRoutineGenerated ? (
                         <button
                           type="button"
+                          disabled={removeFilePhase !== "idle"}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            clearUploadedFile();
+                            handleAnimatedRemoveFile();
                           }}
-                          className="mt-1 inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-rose-500/40 bg-rose-500/15 text-xs font-mono-code text-rose-300 hover:bg-rose-500/25 hover:text-rose-100 transition-colors shadow-sm pointer-events-auto"
+                          className={`group/remove-btn mt-1 inline-flex items-center border border-rose-500/40 bg-rose-500/15 text-xs font-mono-code text-rose-300 shadow-sm pointer-events-auto cursor-pointer hover:border-rose-500/60 hover:bg-rose-500/25 hover:text-rose-100 hover:shadow-[0_0_16px_rgba(244,63,94,0.3)] transition-all duration-200 ease-out ${
+                            removeFilePhase === "collapsing"
+                              ? "w-8 h-8 !p-0 !rounded-full justify-center !border-rose-500/60 !bg-rose-950/40 animate-professional-hide pointer-events-none"
+                              : removeFilePhase !== "idle"
+                                ? "w-8 h-8 !p-0 !rounded-full justify-center !border-rose-500/60 !bg-rose-950/40 shadow-[0_0_16px_rgba(244,63,94,0.4)]"
+                                : "px-3 py-1 rounded-lg gap-1.5"
+                          }`}
                         >
-                          <Trash2 className="h-3.5 w-3.5" /> Remove file
+                          <div className="relative flex items-center justify-center shrink-0">
+                            <svg
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="h-4 w-4 overflow-visible shrink-0 text-rose-300 transition-transform duration-150"
+                            >
+                              {/* Lid hinged at left (4px 6px) - opens upward & sideways on hover */}
+                              <g
+                                className={`trash-lid-group ${
+                                  removeFilePhase === "tossing"
+                                    ? "-rotate-[40deg] -translate-y-1.5"
+                                    : removeFilePhase === "slammed" ||
+                                        removeFilePhase === "collapsing"
+                                      ? "animate-lid-slam"
+                                      : "group-hover/remove-btn:-rotate-[28deg] group-hover/remove-btn:-translate-y-0.5"
+                                }`}
+                              >
+                                <path d="M3 6h18" />
+                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                              </g>
+                              {/* Trash Body with gulp effect */}
+                              <g
+                                className={`trash-body-group ${
+                                  removeFilePhase === "slammed"
+                                    ? "animate-trash-gulp"
+                                    : ""
+                                }`}
+                              >
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                                <line x1="10" x2="10" y1="11" y2="17" />
+                                <line x1="14" x2="14" y1="11" y2="17" />
+                              </g>
+                            </svg>
+
+                            {/* Crumpled paper circle ball that arcs up and dives directly into the trash can */}
+                            {removeFilePhase !== "idle" && (
+                              <span
+                                aria-hidden="true"
+                                className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-rose-500 via-rose-300 to-white shadow-[0_0_12px_rgba(244,63,94,1)] border border-rose-200/95 animate-paper-toss"
+                              />
+                            )}
+                          </div>
+
+                          <div
+                            className={`relative inline-flex items-center overflow-visible transition-all duration-200 ${
+                              removeFilePhase !== "idle" ? "w-0" : ""
+                            }`}
+                          >
+                            {/* Text that shrinks out smoothly when crumpled into ball */}
+                            <span
+                              className={`inline-block whitespace-nowrap transition-all duration-150 ${
+                                removeFilePhase !== "idle"
+                                  ? "opacity-0 scale-50 blur-[2px]"
+                                  : "opacity-100 scale-100 blur-0"
+                              }`}
+                            >
+                              Remove file
+                            </span>
+                          </div>
                         </button>
                       ) : (
                         <span
@@ -2485,13 +3185,15 @@ export default function Home() {
                         />
                         <input
                           id="drive-link"
-                          name="examMateDriveLinkInput"
-                          type="text"
-                          autoComplete="off"
+                          type="url"
+                          autoComplete="one-time-code"
                           autoCorrect="off"
                           autoCapitalize="none"
                           spellCheck={false}
                           data-lpignore="true"
+                          data-form-type="other"
+                          data-1p-ignore="true"
+                          aria-autocomplete="none"
                           value={driveLink}
                           disabled={isLinkDisabled}
                           onContextMenu={(e) => {
@@ -2518,7 +3220,6 @@ export default function Home() {
                             const pasted = event.clipboardData.getData("text");
                             if (pasted && pasted.trim()) {
                               handleDriveInputChange(pasted.trim());
-                              addRecentLink(pasted.trim());
                               setShowLinkPopup(false);
                             }
                           }}
@@ -2540,20 +3241,41 @@ export default function Home() {
                                 ? `Link disabled (${fileName} uploaded)`
                                 : "https://drive.google.com/file/d/…/view"
                           }
-                          className="w-full border-0 bg-transparent py-2 text-sm text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                          className={`w-full border-0 bg-transparent py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed transition-all duration-300 caret-[#5EEAD4] ${
+                            isSlashingLink
+                              ? "text-rose-400 blur-[1.5px] opacity-0 -translate-x-1"
+                              : "text-white opacity-100 blur-0 translate-x-0"
+                          }`}
                         />
+
+                        {/* Red laser strike-through line cutting across the middle of the text from left to right */}
+                        {isSlashingLink && (
+                          <div className="pointer-events-none absolute left-9 right-9 top-1/2 -translate-y-1/2 z-20 overflow-hidden h-4 flex items-center">
+                            <div className="relative w-full h-[2px]">
+                              {/* Glowing neon red laser line */}
+                              <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-rose-600 via-rose-400 to-white shadow-[0_0_10px_rgba(244,63,94,1),0_0_20px_rgba(244,63,94,0.6)] animate-laser-slash" />
+                              {/* Laser spark cutting edge */}
+                              <div className="absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_12px_#fff,0_0_18px_rgba(244,63,94,1)] animate-laser-spark" />
+                            </div>
+                          </div>
+                        )}
+
                         {isLinkActive &&
                           !isFileUploaded &&
                           !isRealRoutineGenerated && (
                             <button
                               type="button"
+                              disabled={isSlashingLink}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                clearDriveLink();
-                                setShowLinkPopup(false);
+                                handleAnimatedClearDriveLink();
                               }}
                               aria-label="Clear drive link"
-                              className="rounded-full p-1 text-slate-400 hover:text-white transition"
+                              className={`rounded-full p-1 transition-all duration-300 cursor-pointer ${
+                                isSlashingLink
+                                  ? "text-rose-400 rotate-90 scale-110 shadow-[0_0_12px_rgba(244,63,94,0.6)]"
+                                  : "text-slate-400 hover:text-rose-300 hover:rotate-90 hover:scale-105"
+                              }`}
                             >
                               <X className="h-3.5 w-3.5" />
                             </button>
@@ -2761,7 +3483,11 @@ export default function Home() {
                             ? "Upload routine file or paste Drive link first…"
                             : "Add course code (e.g. CSE181.5)…"
                       }
-                      className="min-w-[120px] sm:min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed"
+                      autoComplete="one-time-code"
+                      autoCorrect="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
+                      className="min-w-[120px] sm:min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed caret-[#5EEAD4]"
                       aria-describedby="course-codes-hint"
                     />
                   </div>
@@ -2779,7 +3505,8 @@ export default function Home() {
                       className="text-[11px] text-amber-300 font-medium flex items-center gap-1"
                     >
                       <span>
-                        Enter section number after dot (e.g. .5), then press Enter.
+                        Enter section number after dot (e.g. .5), then press
+                        Enter.
                       </span>
                     </p>
                   ) : courseDraft.trim() && !isFullCourseCode(courseDraft) ? (
@@ -2788,7 +3515,8 @@ export default function Home() {
                       className="text-[11px] text-amber-300 font-medium flex items-center gap-1"
                     >
                       <span>
-                        Enter course code with section (e.g. CSE181.5), then press Enter.
+                        Enter course code with section (e.g. CSE181.5), then
+                        press Enter.
                       </span>
                     </p>
                   ) : (
@@ -2879,16 +3607,38 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={clearSavedRoutine}
-                        disabled={!hasDataToClear}
+                        disabled={!hasDataToClear || isClearing}
                         aria-label={
                           !hasDataToClear
-                            ? "No routine data to clear"
-                            : "Clear all routine data"
+                            ? "No routine table generated to clear"
+                            : isClearing
+                              ? "Purging routine data"
+                              : isClearedJustNow
+                                ? "Data cleared successfully"
+                                : "Clear all routine data"
                         }
-                        className="btn-ghost-glass inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-mono-code disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:border-teal-500/20 disabled:hover:bg-transparent transition-all"
+                        className={`btn-ghost-glass inline-flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-mono-code transition-all duration-300 disabled:opacity-35 disabled:cursor-not-allowed disabled:pointer-events-none disabled:hover:border-teal-500/20 disabled:hover:bg-transparent ${
+                          isClearing
+                            ? "!border-rose-500/60 !bg-rose-950/40 !text-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.35)] scale-95"
+                            : isClearedJustNow
+                              ? "!border-emerald-400/60 !bg-emerald-950/40 !text-emerald-200 shadow-[0_0_20px_rgba(52,211,153,0.3)]"
+                              : "hover:border-rose-400/50 hover:bg-rose-950/20 hover:text-rose-200 hover:shadow-[0_0_20px_rgba(244,63,94,0.2)]"
+                        }`}
                       >
-                        <Trash2 className="w-3.5 h-3.5 text-teal-400/70" />
-                        <span>Clear My Data</span>
+                        {isClearing ? (
+                          <Trash2 className="w-3.5 h-3.5 text-rose-400 animate-trash-shake" />
+                        ) : isClearedJustNow ? (
+                          <Check className="w-3.5 h-3.5 text-emerald-300 animate-in zoom-in-75 duration-200" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5 text-teal-400/70 transition-transform duration-200 group-hover/clear:text-rose-400 group-hover/clear:scale-110" />
+                        )}
+                        <span>
+                          {isClearing
+                            ? "Purging..."
+                            : isClearedJustNow
+                              ? "Cleared!"
+                              : "Clear My Data"}
+                        </span>
                       </button>
 
                       {/* Custom Glassmorphic Tooltip */}
@@ -2901,13 +3651,21 @@ export default function Home() {
                             className={`w-1.5 h-1.5 rounded-full shrink-0 ${
                               !hasDataToClear
                                 ? "bg-teal-400/70 shadow-[0_0_6px_rgba(94,234,212,0.6)]"
-                                : "bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]"
+                                : isClearing
+                                  ? "bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)] animate-pulse"
+                                  : isClearedJustNow
+                                    ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.8)]"
+                                    : "bg-rose-400 shadow-[0_0_6px_rgba(244,63,94,0.8)]"
                             }`}
                           />
                           <span>
                             {!hasDataToClear
-                              ? "No routine data to clear"
-                              : "Clear all routine data"}
+                              ? "No routine table generated to clear"
+                              : isClearing
+                                ? "Purging data..."
+                                : isClearedJustNow
+                                  ? "Data cleared successfully"
+                                  : "Clear all routine data"}
                           </span>
                         </div>
                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 border-r border-b border-teal-400/35 bg-[#0A1822]" />
@@ -2934,8 +3692,8 @@ export default function Home() {
                     <span>Accurate Timetable</span>
                   </div>
                   <p className="text-xs text-[#94A3B8] leading-relaxed transition-colors duration-200 group-hover:text-slate-200">
-                    Exam dates, shift times, and faculty info are normalized into
-                    a clear, chronological schedule.
+                    Exam dates, shift times, and faculty info are normalized
+                    into a clear, chronological schedule.
                   </p>
                 </div>
 
@@ -3175,7 +3933,8 @@ export default function Home() {
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
                     </span>
                     <p className="text-xs font-mono text-teal-300">
-                      Generating timetable... {visibleRowCount} of {generatedExams.length} exams identified
+                      Generating timetable... {visibleRowCount} of{" "}
+                      {generatedExams.length} exams identified
                     </p>
                   </div>
                 ) : generatedExams.length > 0 ? (
@@ -3186,7 +3945,13 @@ export default function Home() {
               </div>
 
               {generatedExams.length > 0 && (
-                <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto">
+                <div
+                  className={`flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto transition-all duration-300 ease-out ${
+                    isClearing
+                      ? "opacity-0 -translate-y-1 pointer-events-none"
+                      : "opacity-100 translate-y-0"
+                  }`}
+                >
                   <button
                     type="button"
                     onClick={exportPdf}
@@ -3326,7 +4091,11 @@ export default function Home() {
                 className="relative flex min-h-[300px] w-full items-center justify-center rounded-2xl border border-transparent"
               />
             ) : generatedExams.length === 0 ? (
-              <div className="empty-results-panel relative flex min-h-[300px] w-full items-center justify-center overflow-hidden rounded-2xl border border-teal-500/30 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.45)] sm:p-6">
+              <div
+                className={`empty-results-panel relative flex min-h-[300px] w-full items-center justify-center overflow-hidden rounded-2xl border border-teal-500/30 p-4 shadow-[0_16px_40px_rgba(0,0,0,0.45)] sm:p-6 ${
+                  isClearedJustNow ? "animate-empty-reveal" : ""
+                }`}
+              >
                 <div aria-hidden="true" className="empty-results-preview">
                   <div className="empty-preview-title">
                     <span>EXAM ROUTINE</span>
@@ -3358,7 +4127,11 @@ export default function Home() {
                   role="status"
                   className="empty-results-card group/empty relative z-10 flex w-full max-w-sm flex-col items-center gap-3 rounded-2xl px-5 py-6 text-center sm:px-10 sm:py-8 cursor-default select-none"
                 >
-                  <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-teal-500/20 bg-teal-500/5 text-teal-300 transition-all duration-200 group-hover/empty:border-teal-400/50 group-hover/empty:bg-teal-500/15 group-hover/empty:text-teal-100 group-hover/empty:shadow-[0_0_16px_rgba(94,234,212,0.2)]">
+                  <span
+                    className={`flex h-12 w-12 items-center justify-center rounded-xl border border-teal-500/20 bg-teal-500/5 text-teal-300 transition-all duration-300 group-hover/empty:border-teal-400/50 group-hover/empty:bg-teal-500/15 group-hover/empty:text-teal-100 group-hover/empty:shadow-[0_0_16px_rgba(94,234,212,0.2)] ${
+                      isClearedJustNow ? "animate-empty-icon" : ""
+                    }`}
+                  >
                     <FileText className="h-6 w-6" aria-hidden="true" />
                   </span>
                   <h3 className="text-lg font-semibold text-white tracking-tight transition-colors duration-300 group-hover/empty:text-[#5EEAD4]">
@@ -3383,13 +4156,22 @@ export default function Home() {
                     <div className="pointer-events-none absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[#5EEAD4] to-transparent animate-shimmer z-30" />
                   )}
 
+                  {/* Laser scanline sweep while purging data */}
+                  {isClearing && (
+                    <div className="pointer-events-none absolute inset-0 z-40 overflow-hidden rounded-2xl">
+                      <div className="absolute left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-rose-400 to-transparent shadow-[0_0_16px_rgba(244,63,94,0.95)] animate-scan-wipe" />
+                    </div>
+                  )}
+
                   <div
                     ref={tableWrapperRef}
                     onMouseDown={handleTableMouseDown}
-                    className={`print-table-wrapper relative w-full rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)] transition-all duration-500 ease-out select-none cursor-grab active:cursor-grabbing ${
-                      showCalendarSyncPrompt && !isSyncPromptClosing
-                        ? "backdrop-blur-md opacity-35 blur-[1.5px] pointer-events-none"
-                        : "opacity-100 blur-0"
+                    className={`print-table-wrapper relative w-full rounded-2xl glass-panel border border-teal-500/30 overflow-x-auto shadow-[0_16px_40px_rgba(0,0,0,0.6)] select-none cursor-grab active:cursor-grabbing ${
+                      isClearing
+                        ? "animate-digital-dissolve pointer-events-none"
+                        : showCalendarSyncPrompt && !isSyncPromptClosing
+                          ? "backdrop-blur-md opacity-35 blur-[1.5px] pointer-events-none transition-all duration-500 ease-out"
+                          : "opacity-100 blur-0 transition-all duration-500 ease-out"
                     }`}
                   >
                     <table className="routine-table w-full min-w-[760px] text-left text-sm font-sans">
@@ -3417,29 +4199,29 @@ export default function Home() {
                                   : ""
                               }`}
                             >
-                            <td className="py-3.5 px-4 font-sans font-semibold text-white/95 tabular-nums whitespace-nowrap tracking-tight">
-                              {formatExamDate(exam)}
-                            </td>
-                            <td className="py-3.5 px-4 font-sans font-medium text-slate-300 whitespace-nowrap transition-colors duration-200 group-hover/row:text-teal-200">
-                              {getDayName(exam.date)}
-                            </td>
-                            <td className="py-3.5 px-4 font-sans font-semibold text-[#5EEAD4] tabular-nums whitespace-nowrap tracking-tight transition-colors duration-200 group-hover/row:text-teal-200">
-                              {formatTime(exam.startTime)} –{" "}
-                              {formatTime(exam.endTime)}
-                            </td>
-                            <td className="py-3.5 px-4 whitespace-nowrap">
-                              <span className="inline-flex items-center px-2.5 py-1 rounded-lg font-sans font-semibold text-xs tracking-wide bg-teal-500/15 border border-teal-500/25 text-teal-200">
-                                {exam.courseCode}
-                              </span>
-                            </td>
-                            <td className="py-3.5 px-4 font-sans text-white font-semibold leading-relaxed whitespace-normal transition-colors duration-200 group-hover/row:text-teal-50">
-                              {exam.courseTitle}
-                            </td>
-                            <td className="py-3.5 px-4 font-sans font-medium text-slate-200 whitespace-nowrap transition-colors duration-200 group-hover/row:text-teal-100">
-                              {formatFaculty(exam.faculty)}
-                            </td>
-                          </tr>
-                        ))}
+                              <td className="py-3.5 px-4 font-sans font-semibold text-white/95 tabular-nums whitespace-nowrap tracking-tight">
+                                {formatExamDate(exam)}
+                              </td>
+                              <td className="py-3.5 px-4 font-sans font-medium text-slate-300 whitespace-nowrap transition-colors duration-200 group-hover/row:text-teal-200">
+                                {getDayName(exam.date)}
+                              </td>
+                              <td className="py-3.5 px-4 font-sans font-semibold text-[#5EEAD4] tabular-nums whitespace-nowrap tracking-tight transition-colors duration-200 group-hover/row:text-teal-200">
+                                {formatTime(exam.startTime)} –{" "}
+                                {formatTime(exam.endTime)}
+                              </td>
+                              <td className="py-3.5 px-4 whitespace-nowrap">
+                                <span className="inline-flex items-center px-2.5 py-1 rounded-lg font-sans font-semibold text-xs tracking-wide bg-teal-500/15 border border-teal-500/25 text-teal-200">
+                                  {exam.courseCode}
+                                </span>
+                              </td>
+                              <td className="py-3.5 px-4 font-sans text-white font-semibold leading-relaxed whitespace-normal transition-colors duration-200 group-hover/row:text-teal-50">
+                                {exam.courseTitle}
+                              </td>
+                              <td className="py-3.5 px-4 font-sans font-medium text-slate-200 whitespace-nowrap transition-colors duration-200 group-hover/row:text-teal-100">
+                                {formatFaculty(exam.faculty)}
+                              </td>
+                            </tr>
+                          ))}
                       </tbody>
                     </table>
                   </div>

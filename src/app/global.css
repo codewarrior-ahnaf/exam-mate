@@ -62,6 +62,21 @@ input {
   -webkit-tap-highlight-color: transparent;
 }
 
+input,
+textarea {
+  caret-color: #5eead4 !important;
+}
+
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0px 1000px #0A1620 inset !important;
+  -webkit-text-fill-color: #ffffff !important;
+  transition: background-color 5000s ease-in-out 0s;
+  caret-color: #5eead4 !important;
+}
+
 button {
   cursor: pointer;
 }
@@ -150,7 +165,8 @@ textarea,
   display: block;
   object-fit: contain;
   flex-shrink: 0;
-  filter: brightness(1.16) contrast(1.08) drop-shadow(0 0 3px rgba(255, 255, 255, 0.22));
+  filter: brightness(1.16) contrast(1.08)
+    drop-shadow(0 0 3px rgba(255, 255, 255, 0.22));
   transition:
     filter 300ms ease,
     width 750ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -159,7 +175,8 @@ textarea,
 }
 
 .google-connect-button:hover .google-connect-logo {
-  filter: brightness(1.24) contrast(1.1) drop-shadow(0 0 6px rgba(94, 234, 212, 0.4));
+  filter: brightness(1.24) contrast(1.1)
+    drop-shadow(0 0 6px rgba(94, 234, 212, 0.4));
 }
 
 .google-connect-label {
@@ -191,7 +208,9 @@ textarea,
   box-sizing: border-box;
   color: #d9f5f2;
   border-radius: 9999px;
-  will-change: width, height, min-width, max-width, padding, gap, border-radius, background, border-color, box-shadow;
+  will-change:
+    width, height, min-width, max-width, padding, gap, border-radius,
+    background, border-color, box-shadow;
   transition:
     width 750ms cubic-bezier(0.16, 1, 0.3, 1),
     min-width 750ms cubic-bezier(0.16, 1, 0.3, 1),
@@ -280,10 +299,16 @@ textarea,
   align-items: center !important;
   justify-content: center !important;
   border: 1px solid rgba(94, 234, 212, 0.6) !important;
-  background: radial-gradient(circle at 35% 35%, rgba(22, 54, 62, 0.98), #09171e) !important;
+  background: linear-gradient(
+    110deg,
+    rgba(20, 43, 49, 0.98),
+    rgba(35, 69, 72, 0.94),
+    rgba(19, 42, 48, 0.98)
+  ) !important;
   box-shadow:
     0 0 16px rgba(94, 234, 212, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.22) !important;
+    inset 0 1px 0 rgba(226, 255, 249, 0.22),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.25) !important;
   flex: 0 0 2.25rem !important;
 }
 
@@ -362,6 +387,278 @@ textarea,
   }
 }
 
+/* Rocket MFS Aerobatic Planetary Orbit Ring & Docking System */
+.rocket-orbit-overlay {
+  position: absolute;
+  top: -10px;
+  bottom: -10px;
+  left: -12px;
+  right: -12px;
+  pointer-events: none;
+  z-index: 25;
+}
+
+.rocket-orbit-circle-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 92px;
+  height: 52px;
+  pointer-events: none;
+  z-index: 25;
+}
+
+.rocket-orbit-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* Supersonic Rocket Vector Craft Styles */
+.rocket-vessel {
+  pointer-events: none;
+  transform-origin: 0 0;
+  filter: drop-shadow(0 0 6px rgba(94, 234, 212, 0.9));
+  transition: filter 300ms ease;
+}
+
+/* 3D Depth Scaling during Flight */
+.rocket-vessel--launching {
+  animation: rocketLaunch3DDepth 950ms cubic-bezier(0.2, 0.8, 0.25, 1) forwards;
+}
+
+.rocket-vessel--diving {
+  animation: rocketDive3DDepth 1300ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+.rocket-vessel--orbiting-circle {
+  animation: rocketCirclePulse 1800ms ease-in-out infinite alternate;
+}
+
+@keyframes rocketCirclePulse {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 6px rgba(94, 234, 212, 0.8));
+  }
+  100% {
+    transform: scale(1.06);
+    filter: drop-shadow(0 0 14px rgba(94, 234, 212, 1))
+      drop-shadow(0 0 22px rgba(94, 234, 212, 0.65));
+  }
+}
+
+@keyframes rocketLaunch3DDepth {
+  0% {
+    transform: scale(0.65);
+    opacity: 0.85;
+  }
+  32% {
+    /* Sweeping in front of button (foreground) */
+    transform: scale(1.18);
+    filter: drop-shadow(0 0 16px rgba(94, 234, 212, 1))
+      drop-shadow(0 0 28px rgba(94, 234, 212, 0.7));
+  }
+  68% {
+    transform: scale(0.96);
+  }
+  86% {
+    /* Gliding on final docking approach */
+    transform: scale(1.03);
+    filter: drop-shadow(0 0 10px rgba(94, 234, 212, 0.9));
+  }
+  94% {
+    /* Touchdown shock absorber cushion */
+    transform: scale(0.97) translateY(0.6px);
+  }
+  100% {
+    /* Softly locked in dock berth */
+    transform: scale(1) translateY(0);
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(94, 234, 212, 0.85));
+  }
+}
+
+@keyframes rocketDive3DDepth {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  30% {
+    transform: scale(1.15);
+    opacity: 1;
+    filter: drop-shadow(0 0 14px rgba(94, 234, 212, 1))
+      drop-shadow(0 0 24px rgba(94, 234, 212, 0.7));
+  }
+  75% {
+    transform: scale(0.95);
+    opacity: 0.95;
+  }
+  90% {
+    transform: scale(0.5);
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(0.05);
+    opacity: 0;
+  }
+}
+
+/* Docked idle floating hover */
+.rocket-vessel--docked {
+  filter: drop-shadow(0 0 6px rgba(94, 234, 212, 0.85));
+}
+
+.rocket-docked-hover {
+  transform-origin: 0 0;
+  animation: rocketDockedFloat 3.4s ease-in-out infinite alternate;
+}
+
+@keyframes rocketDockedFloat {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(0.8px, -1.5px) rotate(1.5deg) scale(1.03);
+  }
+  100% {
+    transform: translate(-0.6px, 1px) rotate(-1.5deg) scale(0.98);
+  }
+}
+
+.group\/google:hover .rocket-vessel--docked {
+  filter: drop-shadow(0 0 14px rgba(94, 234, 212, 1))
+    drop-shadow(0 0 24px rgba(94, 234, 212, 0.75));
+}
+
+.group\/google:hover .rocket-flame-idle .flame-plume {
+  transform: scaleX(1.8) scaleY(1.35) !important;
+  opacity: 1 !important;
+}
+
+/* Rocket Thruster Jet Flame */
+.rocket-flame-thrust .flame-plume {
+  transform-origin: -9px 0;
+  animation: flameThrustPulse 160ms ease-in-out infinite alternate;
+  filter: drop-shadow(-3px 0 6px rgba(94, 234, 212, 0.95));
+}
+
+.rocket-flame-thrust .flame-core {
+  transform-origin: -9px 0;
+  animation: flameCoreThrust 130ms ease-in-out infinite alternate;
+}
+
+.rocket-vessel--launching .rocket-flame-thrust .flame-plume {
+  animation:
+    flameThrustPulse 160ms ease-in-out infinite alternate,
+    flameDockTaper 950ms ease-out forwards;
+}
+
+@keyframes flameDockTaper {
+  0%,
+  72% {
+    opacity: 1;
+  }
+  88% {
+    opacity: 0.6;
+    transform: scaleX(0.7) scaleY(0.75);
+  }
+  100% {
+    opacity: 0.45;
+    transform: scaleX(0.45) scaleY(0.6);
+  }
+}
+
+/* Idle thruster flame */
+.rocket-flame-idle .flame-plume {
+  transform-origin: -9px 0;
+  transform: scaleX(0.45) scaleY(0.6);
+  opacity: 0.45;
+  transition:
+    transform 250ms ease,
+    opacity 250ms ease;
+}
+
+.rocket-flame-idle .flame-core {
+  transform-origin: -9px 0;
+  transform: scaleX(0.4) scaleY(0.5);
+  opacity: 0.5;
+}
+
+/* Wingtip strobe beacons */
+.wingtip-beacon {
+  animation: beaconBlink 750ms ease-in-out infinite alternate;
+}
+
+@keyframes beaconBlink {
+  0% {
+    opacity: 0.35;
+    filter: drop-shadow(0 0 1px #5eead4);
+  }
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 5px #5eead4);
+  }
+}
+
+/* Glowing Stardust Particle Smoke Trail */
+.rocket-trail-draw {
+  filter: drop-shadow(0 0 4px rgba(94, 234, 212, 0.95))
+    drop-shadow(0 0 8px rgba(45, 212, 191, 0.65));
+}
+
+.rocket-trail-draw--launch {
+  animation: trailDissolveLaunch 1000ms ease-out forwards;
+}
+
+.rocket-trail-draw--dive {
+  animation: trailDissolveDive 1350ms ease-out forwards;
+}
+
+.rocket-trail-draw--circle {
+  animation: trailCirclePulse 1800ms ease-in-out infinite alternate;
+}
+
+@keyframes trailDissolveLaunch {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes trailDissolveDive {
+  0%,
+  75% {
+    opacity: 1;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes trailCirclePulse {
+  0% {
+    opacity: 0.7;
+    filter: drop-shadow(0 0 3px rgba(94, 234, 212, 0.8));
+  }
+  100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 6px rgba(94, 234, 212, 1));
+  }
+}
+
 .policy-overlay {
   background: rgba(7, 20, 26, 0.28);
   backdrop-filter: blur(12px);
@@ -399,15 +696,12 @@ textarea,
 
 .font-mono-code {
   font-family:
-    "JetBrains Mono",
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
+    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
     monospace;
   letter-spacing: -0.015em;
-  font-feature-settings: "tnum" 1, "zero" 1;
+  font-feature-settings:
+    "tnum" 1,
+    "zero" 1;
 }
 
 h1,
@@ -589,6 +883,8 @@ h4,
   perspective: 1100px;
   transform-style: preserve-3d;
   overflow: visible;
+  isolation: isolate;
+  contain: layout style;
 }
 
 .iso-card-main {
@@ -596,6 +892,8 @@ h4,
   transform-style: preserve-3d;
   transition: transform 0.4s ease;
   will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .iso-card-main:hover {
@@ -605,11 +903,17 @@ h4,
 .iso-card-sub {
   transform: rotateX(38deg) rotateZ(-16deg) translateY(18px) translateX(-28px);
   transform-style: preserve-3d;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 .iso-card-shadow {
   transform: rotateX(38deg) rotateZ(-16deg) translateY(36px);
   filter: blur(14px);
+  will-change: transform, filter;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 @media (max-width: 640px) {
@@ -1053,6 +1357,273 @@ details > summary::-webkit-details-marker {
   animation: rowReveal 380ms cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+/* Clear Data Animations: Sci-Fi Digital Dissolve & Button Micro-interaction */
+@keyframes trashShake {
+  0%,
+  100% {
+    transform: rotate(0deg) scale(1);
+  }
+  15% {
+    transform: rotate(-10deg) scale(1.08);
+  }
+  30% {
+    transform: rotate(8deg) scale(1.05);
+  }
+  45% {
+    transform: rotate(-6deg) scale(1.02);
+  }
+  60% {
+    transform: rotate(4deg) scale(1);
+  }
+  75% {
+    transform: rotate(-2deg) scale(1);
+  }
+}
+
+.animate-trash-shake {
+  animation: trashShake 480ms cubic-bezier(0.36, 0.07, 0.19, 0.97) infinite;
+}
+
+@keyframes digitalDissolve {
+  0% {
+    opacity: 1;
+    filter: blur(0px);
+    transform: translateY(0) scale(1);
+  }
+  30% {
+    opacity: 0.85;
+    filter: blur(1.5px);
+    transform: translateY(2px) scale(0.995);
+  }
+  65% {
+    opacity: 0.45;
+    filter: blur(4px);
+    transform: translateY(8px) scale(0.985);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translateY(16px) scale(0.975);
+  }
+}
+
+.animate-digital-dissolve {
+  animation: digitalDissolve 480ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes scanWipe {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.95;
+  }
+  80% {
+    opacity: 0.85;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-scan-wipe {
+  animation: scanWipe 480ms cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+/* Buttery smooth reveal for the Empty Results Panel when table is removed */
+@keyframes emptyReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.975);
+    filter: blur(8px);
+  }
+  50% {
+    opacity: 0.75;
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.animate-empty-reveal {
+  animation: emptyReveal 580ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes emptyIconPop {
+  0% {
+    transform: scale(0.7) translateY(8px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08) translateY(-2px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-empty-icon {
+  animation: emptyIconPop 620ms cubic-bezier(0.16, 1, 0.3, 1) 80ms both;
+}
+
+/* Interactive Remove File Animations */
+.trash-lid-group {
+  transform-origin: 4px 6px;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.trash-body-group {
+  transform-origin: 12px 14px;
+}
+
+@keyframes paperBallToss {
+  0% {
+    opacity: 0;
+    transform: translate(34px, 2px) scale(0.35);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(24px, -8px) scale(1.1);
+  }
+  50% {
+    /* Peak of arc directly above the center mouth of the trash can */
+    opacity: 1;
+    transform: translate(4px, -18px) scale(0.95);
+  }
+  80% {
+    /* Entering directly into the open top rim of the trash bin */
+    opacity: 1;
+    transform: translate(0px, 0px) scale(0.65);
+  }
+  100% {
+    /* Falling down inside the body of the bin */
+    opacity: 0;
+    transform: translate(0px, 8px) scale(0.1);
+  }
+}
+
+.animate-paper-toss {
+  animation: paperBallToss 220ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes trashLidSlam {
+  0% {
+    transform: rotate(-40deg) translateY(-3px);
+  }
+  50% {
+    transform: rotate(6deg) translateY(0.5px);
+  }
+  70% {
+    transform: rotate(-3deg);
+  }
+  88% {
+    transform: rotate(1deg);
+  }
+  100% {
+    transform: rotate(0deg) translateY(0);
+  }
+}
+
+.animate-lid-slam {
+  animation: trashLidSlam 120ms cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes trashGulp {
+  0% {
+    transform: scale(1);
+  }
+  35% {
+    transform: scale(1.2, 0.84);
+  }
+  70% {
+    transform: scale(0.94, 1.06);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.animate-trash-gulp {
+  animation: trashGulp 130ms ease-out forwards;
+}
+
+/* Professional smooth circular button exit */
+@keyframes professionalButtonHide {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    filter: blur(0px);
+  }
+  25% {
+    opacity: 0.95;
+    transform: scale(1.06) translateY(-1px);
+    filter: blur(0px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.12) translateY(6px);
+    filter: blur(6px);
+  }
+}
+
+.animate-professional-hide {
+  animation: professionalButtonHide 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Laser Strike-Through Animation for Clearing Drive Link */
+@keyframes laserSlash {
+  0% {
+    width: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    width: 100%;
+    opacity: 0;
+  }
+}
+
+.animate-laser-slash {
+  animation: laserSlash 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes laserSpark {
+  0% {
+    left: 0%;
+    opacity: 0;
+    transform: translateY(-50%) scale(0.4);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1.2);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(-50%) scale(1);
+  }
+  100% {
+    left: 100%;
+    opacity: 0;
+    transform: translateY(-50%) scale(0.2);
+  }
+}
+
+.animate-laser-spark {
+  animation: laserSpark 300ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
 /* Interactive Table Row Hover Styling */
 .routine-table tbody tr {
   transition:
@@ -1122,7 +1693,8 @@ html.app-loading body > *:not([role="status"]) {
 }
 
 @keyframes celestialBreathe {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(0.88);
     opacity: 0.85;
   }
@@ -1133,7 +1705,8 @@ html.app-loading body > *:not([role="status"]) {
 }
 
 @keyframes celestialAura {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(0.75);
     opacity: 0.25;
   }
@@ -1144,7 +1717,8 @@ html.app-loading body > *:not([role="status"]) {
 }
 
 @keyframes stardustTwinkle {
-  0%, 100% {
+  0%,
+  100% {
     transform: scale(0.4) rotate(0deg);
     opacity: 0.25;
   }
@@ -1233,21 +1807,26 @@ html.app-loading body > *:not([role="status"]) {
 }
 
 @keyframes googleSpinnerColors {
-  0%, 100% {
+  0%,
+  100% {
     stroke: #38bdf8; /* Radiant Electric Blue */
-    filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.95)) drop-shadow(0 0 8px rgba(66, 133, 244, 0.7));
+    filter: drop-shadow(0 0 4px rgba(56, 189, 248, 0.95))
+      drop-shadow(0 0 8px rgba(66, 133, 244, 0.7));
   }
   25% {
     stroke: #ff4d4f; /* Radiant Neon Red */
-    filter: drop-shadow(0 0 4px rgba(255, 77, 79, 0.95)) drop-shadow(0 0 8px rgba(234, 67, 53, 0.7));
+    filter: drop-shadow(0 0 4px rgba(255, 77, 79, 0.95))
+      drop-shadow(0 0 8px rgba(234, 67, 53, 0.7));
   }
   50% {
     stroke: #facc15; /* Luminous Vivid Yellow */
-    filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.95)) drop-shadow(0 0 8px rgba(251, 188, 5, 0.7));
+    filter: drop-shadow(0 0 4px rgba(250, 204, 21, 0.95))
+      drop-shadow(0 0 8px rgba(251, 188, 5, 0.7));
   }
   75% {
     stroke: #34d399; /* Radiant Emerald Green */
-    filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.95)) drop-shadow(0 0 8px rgba(52, 168, 83, 0.7));
+    filter: drop-shadow(0 0 4px rgba(52, 211, 153, 0.95))
+      drop-shadow(0 0 8px rgba(52, 168, 83, 0.7));
   }
 }
 
@@ -1265,8 +1844,6 @@ html.app-loading body > *:not([role="status"]) {
   border-color: rgba(94, 234, 212, 0.75) !important;
   box-shadow:
     0 0 22px rgba(56, 189, 248, 0.35),
-    0 0 32px rgba(94, 234, 212, 0.28),
-    inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+    inset 0 1px 0 rgba(226, 255, 249, 0.25),
+    inset 0 -2px 8px rgba(0, 0, 0, 0.25) !important;
 }
-
-
