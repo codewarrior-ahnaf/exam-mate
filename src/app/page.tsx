@@ -103,7 +103,7 @@ const SAMPLE_EXAMS: ParsedExam[] = [
   {
     id: "CSE181.1-2026-10-31-10:00",
     courseCode: "CSE181.1",
-    courseTitle: "Data Structures & Algorithms (Sec 1)",
+    courseTitle: "Data Structures & Algorithms",
     date: "2026-10-31",
     startTime: "10:00",
     endTime: "12:00",
@@ -113,7 +113,7 @@ const SAMPLE_EXAMS: ParsedExam[] = [
   {
     id: "CSE181.5-2026-10-31-14:00",
     courseCode: "CSE181.5",
-    courseTitle: "Data Structures & Algorithms (Sec 5)",
+    courseTitle: "Data Structures & Algorithms",
     date: "2026-10-31",
     startTime: "14:00",
     endTime: "16:00",
@@ -1891,6 +1891,23 @@ export default function Home() {
       window.print();
     }
   }
+
+  // Ctrl+P / Cmd+P shortcut: triggers printPdf if table is generated; blocks native print otherwise
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        if (generatedExams.length > 0 && !isRevealingRows) {
+          void printPdf();
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [generatedExams, isRevealingRows]);
 
   function fallbackExportPng() {
     const scale = 2;
@@ -4394,7 +4411,7 @@ export default function Home() {
             <span className="px-1.5 text-teal-500/60">·</span>
             Made by{" "}
             <span className="font-medium text-[#94A3B8]">
-              codewarrior-ahnaf
+              Ahnaf Shahriar Abir
             </span>
           </div>
         </LazySection>
