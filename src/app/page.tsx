@@ -197,6 +197,42 @@ function isVarsityEmail(email?: string | null): boolean {
   );
 }
 
+function isGoogleDriveLink(val: unknown): boolean {
+  if (!val || typeof val !== "string") return false;
+  const trimmed = val.trim();
+  if (!trimmed) return false;
+  try {
+    const raw = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    const isGoogleHost =
+      host === "drive.google.com" ||
+      host === "docs.google.com" ||
+      host === "sheets.google.com" ||
+      host.endsWith(".drive.google.com") ||
+      host.endsWith(".docs.google.com");
+    if (!isGoogleHost) return false;
+
+    return (
+      /\/file\/(?:u\/\d+\/)?d\/[\w-]{10,}/i.test(url.pathname) ||
+      /\/spreadsheets\/(?:u\/\d+\/)?d\/(?:e\/)?[\w-]{10,}/i.test(url.pathname) ||
+      /\/folders\/[\w-]{10,}/i.test(url.pathname) ||
+      /\/d\/[\w-]{10,}/i.test(url.pathname) ||
+      (Boolean(url.searchParams.get("id")) &&
+        /^[\w-]{10,}$/.test(url.searchParams.get("id")!))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function normalizeDriveLink(val: string): string {
+  const trimmed = val.trim();
+  if (!trimmed) return "";
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 const GOOGLE_BASE_SCOPES = [
   "openid",
   "email",
@@ -867,11 +903,16 @@ export default function Home() {
       if (raw) {
         const parsed = JSON.parse(raw) as unknown;
         if (Array.isArray(parsed)) {
-          const valid = parsed.filter(
-            (item): item is string =>
-              typeof item === "string" && Boolean(item.trim()),
-          );
-          setRecentLinks(valid.slice(0, 1));
+          const valid = parsed
+            .map((item) => (typeof item === "string" ? normalizeDriveLink(item) : ""))
+            .filter((item): item is string => isGoogleDriveLink(item));
+          setRecentLinks(valid.slice(0, 3));
+          if (valid.length !== parsed.length) {
+            window.localStorage.setItem(
+              RECENT_DRIVE_LINKS_KEY,
+              JSON.stringify(valid.slice(0, 3)),
+            );
+          }
         }
       }
     } catch {
@@ -900,17 +941,23 @@ export default function Home() {
 
   function addRecentLink(link: string) {
     const trimmed = link.trim();
-    if (!trimmed) return;
-    const updated = [trimmed];
-    setRecentLinks(updated);
-    try {
-      window.localStorage.setItem(
-        RECENT_DRIVE_LINKS_KEY,
-        JSON.stringify(updated),
+    if (!trimmed || !isGoogleDriveLink(trimmed)) return;
+    const normalized = normalizeDriveLink(trimmed);
+    setRecentLinks((prev) => {
+      const filtered = prev.filter(
+        (item) => item !== normalized && isGoogleDriveLink(item),
       );
-    } catch {
-      // ignore
-    }
+      const updated = [normalized, ...filtered].slice(0, 3);
+      try {
+        window.localStorage.setItem(
+          RECENT_DRIVE_LINKS_KEY,
+          JSON.stringify(updated),
+        );
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
   }
 
   function removeRecentLink(linkToRemove: string) {
@@ -946,8 +993,13 @@ export default function Home() {
       const text = await navigator.clipboard.readText();
       if (text && text.trim()) {
         const trimmed = text.trim();
-        handleDriveInputChange(trimmed);
-        addRecentLink(trimmed);
+        if (!isGoogleDriveLink(trimmed)) {
+          setError("Clipboard does not contain a valid Google Drive link.");
+          return;
+        }
+        const normalized = normalizeDriveLink(trimmed);
+        handleDriveInputChange(normalized);
+        addRecentLink(normalized);
         setShowLinkPopup(false);
         setMessage("Drive link pasted.");
       } else {
@@ -1255,6 +1307,10 @@ export default function Home() {
     const link = rawLink.trim();
     if (!link && !allExams.length) {
       setError("Upload a routine file or paste a Drive link.");
+      return;
+    }
+    if (link && !isGoogleDriveLink(link)) {
+      setError("Please provide a valid Google Drive or Google Sheets link.");
       return;
     }
 
@@ -3121,9 +3177,59 @@ export default function Home() {
                               return;
                             }
                             const pasted = event.clipboardData.getData("text");
-                            if (pasted && pasted.trim()) {
-                              handleDriveInputChange(pasted.trim());
-                              setShowLinkPopup(false);
+                            const trimmed = pasted ? pasted.trim() : "";
+                            if (!trimmed) {
+                              event.preventDefault();
+                              return;
+                            }
+                            if (!isGoogleDriveLink(trimmed)) {
+                              event.preventDefault();
+                              setError(
+                                "Only Google Drive links can be pasted here.",
+                              );
+                              return;
+                            }
+                            event.preventDefault();
+                            const normalized = normalizeDriveLink(trimmed);
+                            handleDriveInputChange(normalized);
+                            addRecentLink(normalized);
+                            setShowLinkPopup(false);
+                            setError("");
+                            setMessage("Drive link pasted.");
+                          }}
+                          onDrop={(event) => {
+                            if (isRealRoutineGenerated || isLinkDisabled) {
+                              event.preventDefault();
+                              return;
+                            }
+                            const dropped = event.dataTransfer.getData("text");
+                            const trimmed = dropped ? dropped.trim() : "";
+                            if (!trimmed) {
+                              event.preventDefault();
+                              return;
+                            }
+                            if (!isGoogleDriveLink(trimmed)) {
+                              event.preventDefault();
+                              setError(
+                                "Only Google Drive links can be pasted here.",
+                              );
+                              return;
+                            }
+                            event.preventDefault();
+                            const normalized = normalizeDriveLink(trimmed);
+                            handleDriveInputChange(normalized);
+                            addRecentLink(normalized);
+                            setShowLinkPopup(false);
+                            setError("");
+                            setMessage("Drive link pasted.");
+                          }}
+                          onBlur={() => {
+                            if (
+                              driveLink.trim() &&
+                              !isGoogleDriveLink(driveLink.trim())
+                            ) {
+                              setError("Only Google Drive links are allowed.");
+                              setDriveLink("");
                             }
                           }}
                           onKeyDown={(event) => {
@@ -3132,6 +3238,16 @@ export default function Home() {
                             } else if (event.key === "Enter") {
                               event.preventDefault();
                               setShowLinkPopup(false);
+                              if (
+                                driveLink.trim() &&
+                                !isGoogleDriveLink(driveLink.trim())
+                              ) {
+                                setError(
+                                  "Only Google Drive links are allowed.",
+                                );
+                                setDriveLink("");
+                                return;
+                              }
                               if (hasEnteredCourse) {
                                 void handleGenerate();
                               }
@@ -3197,7 +3313,7 @@ export default function Home() {
                           </button>
 
                           {/* Recent Links (compact) */}
-                          {recentLinks.length > 0 && (
+                          {recentLinks.filter(isGoogleDriveLink).length > 0 && (
                             <div className="mt-1 flex flex-col gap-0.5 border-t border-teal-500/15 pt-1">
                               <div className="flex items-center justify-between px-1 text-[9px] font-mono-code text-teal-400/70">
                                 <span>RECENT</span>
@@ -3209,34 +3325,37 @@ export default function Home() {
                                   Clear
                                 </button>
                               </div>
-                              {recentLinks.slice(0, 1).map((link) => (
-                                <div
-                                  key={link}
-                                  className="group flex items-center justify-between gap-1 px-1.5 py-0.5 rounded text-[11px] hover:bg-teal-500/15 transition cursor-pointer"
-                                >
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      handleDriveInputChange(link);
-                                      setShowLinkPopup(false);
-                                    }}
-                                    className="truncate font-mono-code text-[10px] text-teal-100 hover:text-white text-left flex-1 cursor-pointer"
+                              {recentLinks
+                                .filter(isGoogleDriveLink)
+                                .slice(0, 3)
+                                .map((link) => (
+                                  <div
+                                    key={link}
+                                    className="group flex items-center justify-between gap-1 px-1.5 py-0.5 rounded text-[11px] hover:bg-teal-500/15 transition cursor-pointer"
                                   >
-                                    {link}
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      removeRecentLink(link);
-                                    }}
-                                    aria-label="Remove"
-                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5 cursor-pointer"
-                                  >
-                                    <X className="h-2.5 w-2.5" />
-                                  </button>
-                                </div>
-                              ))}
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleDriveInputChange(link);
+                                        setShowLinkPopup(false);
+                                      }}
+                                      className="truncate font-mono-code text-[10px] text-teal-100 hover:text-white text-left flex-1 cursor-pointer"
+                                    >
+                                      {link}
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        removeRecentLink(link);
+                                      }}
+                                      aria-label="Remove"
+                                      className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5 cursor-pointer"
+                                    >
+                                      <X className="h-2.5 w-2.5" />
+                                    </button>
+                                  </div>
+                                ))}
                             </div>
                           )}
                         </div>
