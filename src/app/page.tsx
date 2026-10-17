@@ -523,12 +523,6 @@ export default function Home() {
   const [isClearedJustNow, setIsClearedJustNow] = useState(false);
   const clearTimerRef = useRef<NodeJS.Timeout | null>(null);
   const clearedSuccessTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [removeFilePhase, setRemoveFilePhase] = useState<
-    "idle" | "tossing" | "slammed" | "collapsing"
-  >("idle");
-  const removeFileTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const [isSlashingLink, setIsSlashingLink] = useState(false);
-  const slashLinkTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isUploadDisabled = isLinkActive || uploading || isRealRoutineGenerated;
   const isLinkDisabled = isFileUploaded || isRealRoutineGenerated;
@@ -784,12 +778,6 @@ export default function Home() {
       if (clearedSuccessTimerRef.current) {
         clearTimeout(clearedSuccessTimerRef.current);
       }
-      if (removeFileTimerRef.current) {
-        clearTimeout(removeFileTimerRef.current);
-      }
-      if (slashLinkTimerRef.current) {
-        clearTimeout(slashLinkTimerRef.current);
-      }
     };
   }, []);
 
@@ -949,20 +937,6 @@ export default function Home() {
     }
   }
 
-  function handleDriveInputChange(val: string) {
-    if (isRealRoutineGenerated) return;
-    if (isSampleRoutine && val.trim()) {
-      setIsSampleRoutine(false);
-      setGeneratedExams([]);
-      setVisibleRowCount(0);
-      setIsRevealingRows(false);
-      setFileName("");
-      setCourseInput("");
-      setCourseDraft("");
-    }
-    setDriveLink(val);
-  }
-
   async function handlePasteFromClipboard() {
     if (isLinkDisabled) return;
     try {
@@ -982,6 +956,20 @@ export default function Home() {
     } catch {
       setError("Press Ctrl+V to paste.");
     }
+  }
+
+  function handleDriveInputChange(val: string) {
+    if (isRealRoutineGenerated) return;
+    if (isSampleRoutine && val.trim()) {
+      setIsSampleRoutine(false);
+      setGeneratedExams([]);
+      setVisibleRowCount(0);
+      setIsRevealingRows(false);
+      setFileName("");
+      setCourseInput("");
+      setCourseDraft("");
+    }
+    setDriveLink(val);
   }
 
   async function syncCalendar(exams = generatedExams): Promise<boolean> {
@@ -1112,7 +1100,6 @@ export default function Home() {
     setMessage("");
     setFileName(file.name);
     setDriveLink("");
-    setShowLinkPopup(false);
 
     try {
       const parsed = await parseRoutineFile(file);
@@ -1194,36 +1181,7 @@ export default function Home() {
     }
   }
 
-  function handleAnimatedRemoveFile() {
-    if (removeFilePhase !== "idle") return;
-
-    // Phase 1: Button morphs into circle, text crumples into paper ball and arcs into trash can (220ms)
-    setRemoveFilePhase("tossing");
-
-    if (removeFileTimerRef.current) clearTimeout(removeFileTimerRef.current);
-
-    removeFileTimerRef.current = setTimeout(() => {
-      // Phase 2: Circle enters trash can, lid snaps shut with a bounce, can gulps (140ms)
-      setRemoveFilePhase("slammed");
-
-      removeFileTimerRef.current = setTimeout(() => {
-        // Phase 3: Circular button gracefully hides with professional smooth scale (200ms)
-        setRemoveFilePhase("collapsing");
-
-        removeFileTimerRef.current = setTimeout(() => {
-          // Phase 4: State cleanly resets to empty
-          clearUploadedFile();
-          setRemoveFilePhase("idle");
-        }, 200);
-      }, 140);
-    }, 220);
-  }
-
   function clearUploadedFile() {
-    if (removeFileTimerRef.current) {
-      clearTimeout(removeFileTimerRef.current);
-    }
-    setRemoveFilePhase("idle");
     setFileName("");
     setRestrictedDriveFileId("");
     setRequiresGoogleAuth(false);
@@ -1237,25 +1195,7 @@ export default function Home() {
     setMessage("");
   }
 
-  function handleAnimatedClearDriveLink() {
-    if (isSlashingLink || !driveLink) return;
-
-    setIsSlashingLink(true);
-    setShowLinkPopup(false);
-
-    if (slashLinkTimerRef.current) clearTimeout(slashLinkTimerRef.current);
-
-    slashLinkTimerRef.current = setTimeout(() => {
-      clearDriveLink();
-      setIsSlashingLink(false);
-    }, 320);
-  }
-
   function clearDriveLink() {
-    if (slashLinkTimerRef.current) {
-      clearTimeout(slashLinkTimerRef.current);
-    }
-    setIsSlashingLink(false);
     setDriveLink("");
     setShowLinkPopup(false);
     setCourseInput("");
@@ -1625,7 +1565,6 @@ export default function Home() {
     setAllExams(SAMPLE_EXAMS);
     setFileName("Sample_Exam_Routine_Fall2026.xlsx");
     setDriveLink("");
-    setShowLinkPopup(false);
     setCourseInput("CSE101.1, CSE181.5, MAT101.2");
     setCourseDraft("");
     setError("");
@@ -1661,10 +1600,6 @@ export default function Home() {
     if (clearTimerRef.current) clearTimeout(clearTimerRef.current);
     if (clearedSuccessTimerRef.current)
       clearTimeout(clearedSuccessTimerRef.current);
-    if (removeFileTimerRef.current) clearTimeout(removeFileTimerRef.current);
-    setRemoveFilePhase("idle");
-    if (slashLinkTimerRef.current) clearTimeout(slashLinkTimerRef.current);
-    setIsSlashingLink(false);
 
     clearTimerRef.current = setTimeout(() => {
       setIsSampleRoutine(false);
@@ -1675,7 +1610,6 @@ export default function Home() {
       setCourseDraft("");
       setFileName("");
       setDriveLink("");
-      setShowLinkPopup(false);
       setAllExams([]);
       setRestrictedDriveFileId("");
       setRequiresGoogleAuth(false);
@@ -3041,83 +2975,35 @@ export default function Home() {
                       !isRealRoutineGenerated ? (
                         <button
                           type="button"
-                          disabled={removeFilePhase !== "idle"}
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            handleAnimatedRemoveFile();
+                            clearUploadedFile();
                           }}
-                          className={`group/remove-btn mt-1 inline-flex items-center border border-rose-500/40 bg-rose-500/15 text-xs font-mono-code text-rose-300 shadow-sm pointer-events-auto cursor-pointer hover:border-rose-500/60 hover:bg-rose-500/25 hover:text-rose-100 hover:shadow-[0_0_16px_rgba(244,63,94,0.3)] transition-all duration-200 ease-out ${
-                            removeFilePhase === "collapsing"
-                              ? "w-8 h-8 !p-0 !rounded-full justify-center !border-rose-500/60 !bg-rose-950/40 animate-professional-hide pointer-events-none"
-                              : removeFilePhase !== "idle"
-                                ? "w-8 h-8 !p-0 !rounded-full justify-center !border-rose-500/60 !bg-rose-950/40 shadow-[0_0_16px_rgba(244,63,94,0.4)]"
-                                : "px-3 py-1 rounded-lg gap-1.5"
-                          }`}
+                          className="group/remove-btn mt-1 inline-flex items-center px-3 py-1 rounded-lg gap-1.5 border border-rose-500/40 bg-rose-500/15 text-xs font-mono-code text-rose-300 shadow-sm pointer-events-auto cursor-pointer hover:border-rose-500/60 hover:bg-rose-500/25 hover:text-rose-100 hover:shadow-[0_0_16px_rgba(244,63,94,0.3)] transition-all duration-200 ease-out"
                         >
-                          <div className="relative flex items-center justify-center shrink-0">
-                            <svg
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              className="h-4 w-4 overflow-visible shrink-0 text-rose-300 transition-transform duration-150"
-                            >
-                              {/* Lid hinged at left (4px 6px) - opens upward & sideways on hover */}
-                              <g
-                                className={`trash-lid-group ${
-                                  removeFilePhase === "tossing"
-                                    ? "-rotate-[40deg] -translate-y-1.5"
-                                    : removeFilePhase === "slammed" ||
-                                        removeFilePhase === "collapsing"
-                                      ? "animate-lid-slam"
-                                      : "group-hover/remove-btn:-rotate-[28deg] group-hover/remove-btn:-translate-y-0.5"
-                                }`}
-                              >
-                                <path d="M3 6h18" />
-                                <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                              </g>
-                              {/* Trash Body with gulp effect */}
-                              <g
-                                className={`trash-body-group ${
-                                  removeFilePhase === "slammed"
-                                    ? "animate-trash-gulp"
-                                    : ""
-                                }`}
-                              >
-                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                                <line x1="10" x2="10" y1="11" y2="17" />
-                                <line x1="14" x2="14" y1="11" y2="17" />
-                              </g>
-                            </svg>
-
-                            {/* Crumpled paper circle ball that arcs up and dives directly into the trash can */}
-                            {removeFilePhase !== "idle" && (
-                              <span
-                                aria-hidden="true"
-                                className="pointer-events-none absolute left-1/2 top-1 -translate-x-1/2 w-2.5 h-2.5 rounded-full bg-gradient-to-tr from-rose-500 via-rose-300 to-white shadow-[0_0_12px_rgba(244,63,94,1)] border border-rose-200/95 animate-paper-toss"
-                              />
-                            )}
-                          </div>
-
-                          <div
-                            className={`relative inline-flex items-center overflow-visible transition-all duration-200 ${
-                              removeFilePhase !== "idle" ? "w-0" : ""
-                            }`}
+                          <svg
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className="h-3.5 w-3.5 shrink-0 text-rose-300 transition-colors duration-150 overflow-visible"
                           >
-                            {/* Text that shrinks out smoothly when crumpled into ball */}
-                            <span
-                              className={`inline-block whitespace-nowrap transition-all duration-150 ${
-                                removeFilePhase !== "idle"
-                                  ? "opacity-0 scale-50 blur-[2px]"
-                                  : "opacity-100 scale-100 blur-0"
-                              }`}
-                            >
-                              Remove file
-                            </span>
-                          </div>
+                            {/* Lid hinged at left - smoothly opens from one side on hover */}
+                            <g className="trash-lid">
+                              <path d="M3 6h18" />
+                              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                            </g>
+                            {/* Trash Body */}
+                            <g>
+                              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                              <line x1="10" x2="10" y1="11" y2="17" />
+                              <line x1="14" x2="14" y1="11" y2="17" />
+                            </g>
+                          </svg>
+                          <span className="whitespace-nowrap">Remove file</span>
                         </button>
                       ) : (
                         <span
@@ -3186,7 +3072,7 @@ export default function Home() {
                         <input
                           id="drive-link"
                           type="url"
-                          autoComplete="one-time-code"
+                          autoComplete="off"
                           autoCorrect="off"
                           autoCapitalize="none"
                           spellCheck={false}
@@ -3241,48 +3127,33 @@ export default function Home() {
                                 ? `Link disabled (${fileName} uploaded)`
                                 : "https://drive.google.com/file/d/…/view"
                           }
-                          className={`w-full border-0 bg-transparent py-2 text-sm placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed transition-all duration-300 caret-[#5EEAD4] ${
-                            isSlashingLink
-                              ? "text-rose-400 blur-[1.5px] opacity-0 -translate-x-1"
-                              : "text-white opacity-100 blur-0 translate-x-0"
-                          }`}
+                          style={{
+                            outline: "none",
+                            boxShadow: "none",
+                            border: "none",
+                            caretColor: "#5EEAD4",
+                          }}
+                          className="w-full border-0 bg-transparent py-2 text-sm placeholder:text-slate-500 !outline-none focus:!outline-none focus:ring-0 focus-visible:!outline-none focus-visible:ring-0 ring-0 disabled:cursor-not-allowed transition-colors text-white caret-[#5EEAD4]"
                         />
-
-                        {/* Red laser strike-through line cutting across the middle of the text from left to right */}
-                        {isSlashingLink && (
-                          <div className="pointer-events-none absolute left-9 right-9 top-1/2 -translate-y-1/2 z-20 overflow-hidden h-4 flex items-center">
-                            <div className="relative w-full h-[2px]">
-                              {/* Glowing neon red laser line */}
-                              <div className="absolute top-0 left-0 h-full bg-gradient-to-r from-rose-600 via-rose-400 to-white shadow-[0_0_10px_rgba(244,63,94,1),0_0_20px_rgba(244,63,94,0.6)] animate-laser-slash" />
-                              {/* Laser spark cutting edge */}
-                              <div className="absolute top-1/2 -translate-y-1/2 h-2.5 w-2.5 rounded-full bg-white shadow-[0_0_12px_#fff,0_0_18px_rgba(244,63,94,1)] animate-laser-spark" />
-                            </div>
-                          </div>
-                        )}
 
                         {isLinkActive &&
                           !isFileUploaded &&
                           !isRealRoutineGenerated && (
                             <button
                               type="button"
-                              disabled={isSlashingLink}
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleAnimatedClearDriveLink();
+                                clearDriveLink();
                               }}
                               aria-label="Clear drive link"
-                              className={`rounded-full p-1 transition-all duration-300 cursor-pointer ${
-                                isSlashingLink
-                                  ? "text-rose-400 rotate-90 scale-110 shadow-[0_0_12px_rgba(244,63,94,0.6)]"
-                                  : "text-slate-400 hover:text-rose-300 hover:rotate-90 hover:scale-105"
-                              }`}
+                              className="rounded-full p-1 text-slate-400 hover:text-rose-300 hover:rotate-90 hover:scale-105 transition-all duration-200 cursor-pointer"
                             >
                               <X className="h-3.5 w-3.5" />
                             </button>
                           )}
                       </div>
 
-                      {/* Compact Custom Popup on left click */}
+                      {/* Compact Custom Popup on click */}
                       {showLinkPopup && !isLinkDisabled && (
                         <div
                           ref={linkPopupRef}
@@ -3297,7 +3168,7 @@ export default function Home() {
                           <button
                             type="button"
                             onClick={() => void handlePasteFromClipboard()}
-                            className="flex w-full items-center justify-between gap-2.5 rounded-md bg-teal-500/15 px-2.5 py-1.5 text-xs font-medium text-teal-200 transition hover:bg-teal-500/25 border border-teal-500/30"
+                            className="flex w-full items-center justify-between gap-2.5 rounded-md bg-teal-500/15 px-2.5 py-1.5 text-xs font-medium text-teal-200 transition hover:bg-teal-500/25 border border-teal-500/30 cursor-pointer"
                           >
                             <div className="flex items-center gap-1.5">
                               <ClipboardPaste className="h-3.5 w-3.5 text-teal-300 shrink-0" />
@@ -3316,7 +3187,7 @@ export default function Home() {
                                 <button
                                   type="button"
                                   onClick={clearAllRecentLinks}
-                                  className="hover:text-rose-400 transition"
+                                  className="hover:text-rose-400 transition cursor-pointer"
                                 >
                                   Clear
                                 </button>
@@ -3332,7 +3203,7 @@ export default function Home() {
                                       handleDriveInputChange(link);
                                       setShowLinkPopup(false);
                                     }}
-                                    className="truncate font-mono-code text-[10px] text-teal-100 hover:text-white text-left flex-1"
+                                    className="truncate font-mono-code text-[10px] text-teal-100 hover:text-white text-left flex-1 cursor-pointer"
                                   >
                                     {link}
                                   </button>
@@ -3343,7 +3214,7 @@ export default function Home() {
                                       removeRecentLink(link);
                                     }}
                                     aria-label="Remove"
-                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5"
+                                    className="opacity-0 group-hover:opacity-100 text-slate-400 hover:text-rose-400 p-0.5 cursor-pointer"
                                   >
                                     <X className="h-2.5 w-2.5" />
                                   </button>
