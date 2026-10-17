@@ -1299,6 +1299,16 @@ export default function Home() {
     setCourseInput(nextCodes);
   }
 
+  function clearAllCourseCodes() {
+    setCourseInput("");
+    setCourseDraft("");
+    if (error && error.toLowerCase().includes("course")) {
+      setError("");
+    }
+    const input = document.getElementById("course-codes") as HTMLInputElement | null;
+    input?.focus();
+  }
+
   async function handleGenerate(
     overrideLink?: string,
     overrideCourses?: string,
@@ -3257,7 +3267,7 @@ export default function Home() {
                             isRealRoutineGenerated
                               ? "Link disabled (routine table generated)"
                               : isFileUploaded
-                                ? `Link disabled (${fileName} uploaded)`
+                                ? "Link disabled (file uploaded)"
                                 : "https://drive.google.com/file/d/…/view"
                           }
                           style={{
@@ -3365,7 +3375,7 @@ export default function Home() {
                     {isRealRoutineGenerated ? null : isFileUploaded ? (
                       <p className="text-[10px] text-amber-300/80 font-mono-code">
                         * Drive link is disabled because an Excel file is
-                        already uploaded ({fileName}). Click &quot;Remove
+                        already uploaded. Click &quot;Remove
                         file&quot; above to use a link instead.
                       </p>
                     ) : (
@@ -3396,12 +3406,27 @@ export default function Home() {
                 <div
                   className={`flex flex-col gap-1.5 ${isCourseInputDisabled ? "cursor-not-allowed" : ""}`}
                 >
-                  <label
-                    htmlFor="course-codes"
-                    className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
-                  >
-                    COURSE CODES
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label
+                      htmlFor="course-codes"
+                      className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
+                    >
+                      COURSE CODES
+                    </label>
+                    {(selectedCourseCodes.length > 0 ||
+                      Boolean(courseDraft.trim())) &&
+                      !isCourseInputDisabled && (
+                        <button
+                          type="button"
+                          onClick={clearAllCourseCodes}
+                          className="group flex items-center gap-1 text-[10px] font-mono-code text-teal-400/70 hover:text-rose-300 transition-colors duration-150 cursor-pointer"
+                          title="Clear all course codes"
+                        >
+                          <X className="h-3 w-3 transition-transform duration-200 group-hover:rotate-90" />
+                          <span>Clear all</span>
+                        </button>
+                      )}
+                  </div>
                   <div
                     onContextMenu={(e) => e.preventDefault()}
                     className={`flex min-h-12 flex-wrap items-center gap-2 rounded-xl border px-3 py-2 transition-all duration-200 ${
