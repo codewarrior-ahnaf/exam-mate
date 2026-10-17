@@ -3406,30 +3406,21 @@ export default function Home() {
                 <div
                   className={`flex flex-col gap-1.5 ${isCourseInputDisabled ? "cursor-not-allowed" : ""}`}
                 >
-                  <div className="flex items-center justify-between">
-                    <label
-                      htmlFor="course-codes"
-                      className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
-                    >
-                      COURSE CODES
-                    </label>
-                    {(selectedCourseCodes.length > 0 ||
-                      Boolean(courseDraft.trim())) &&
-                      !isCourseInputDisabled && (
-                        <button
-                          type="button"
-                          onClick={clearAllCourseCodes}
-                          className="group flex items-center gap-1 text-[10px] font-mono-code text-teal-400/70 hover:text-rose-300 transition-colors duration-150 cursor-pointer"
-                          title="Clear all course codes"
-                        >
-                          <X className="h-3 w-3 transition-transform duration-200 group-hover:rotate-90" />
-                          <span>Clear all</span>
-                        </button>
-                      )}
-                  </div>
+                  <label
+                    htmlFor="course-codes"
+                    className="text-[10px] font-mono-code uppercase tracking-wider text-teal-400/80 font-semibold"
+                  >
+                    COURSE CODES
+                  </label>
                   <div
                     onContextMenu={(e) => e.preventDefault()}
-                    className={`flex min-h-12 flex-wrap items-center gap-2 rounded-xl border px-3 py-2 transition-all duration-200 ${
+                    className={`relative flex min-h-12 flex-wrap items-center gap-2 rounded-xl border pl-3 ${
+                      (selectedCourseCodes.length > 0 ||
+                        Boolean(courseDraft.trim())) &&
+                      !isCourseInputDisabled
+                        ? "pr-24"
+                        : "pr-3"
+                    } py-2 transition-all duration-200 ${
                       isCourseInputDisabled
                         ? "opacity-40 cursor-not-allowed border-slate-700 bg-slate-950/40 pointer-events-none"
                         : "glass-card border-teal-500/30 bg-[#0A1620]/80 focus-within:border-teal-400 focus-within:ring-1 focus-within:ring-teal-400 focus-within:shadow-[0_0_20px_rgba(94,234,212,0.2)]"
@@ -3522,6 +3513,21 @@ export default function Home() {
                       className="min-w-[120px] sm:min-w-[150px] flex-1 border-0 bg-transparent px-1 py-1 text-sm font-mono-code uppercase text-white placeholder:text-slate-500 focus:outline-none focus:ring-0 disabled:cursor-not-allowed caret-[#5EEAD4]"
                       aria-describedby="course-codes-hint"
                     />
+
+                    {(selectedCourseCodes.length > 0 ||
+                      Boolean(courseDraft.trim())) &&
+                      !isCourseInputDisabled && (
+                        <button
+                          type="button"
+                          onClick={clearAllCourseCodes}
+                          aria-label="Clear all course codes"
+                          className="group absolute right-2.5 top-2.5 z-10 inline-flex items-center gap-1 rounded-md border border-rose-500/35 bg-rose-500/15 px-2 py-1 text-[10px] font-mono-code text-rose-300 shadow-sm transition-all duration-200 hover:border-rose-400 hover:bg-rose-500/25 hover:text-rose-100 hover:shadow-[0_0_12px_rgba(244,63,94,0.25)] cursor-pointer"
+                          title="Clear all course codes"
+                        >
+                          <X className="h-3 w-3 transition-transform duration-200 group-hover:rotate-90 text-rose-300 group-hover:text-rose-100" />
+                          <span>Clear all</span>
+                        </button>
+                      )}
                   </div>
                   {!hasRoutineSource ? (
                     <p
